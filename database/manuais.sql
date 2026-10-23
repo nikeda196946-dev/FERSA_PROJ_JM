@@ -57,10 +57,19 @@ create table if not exists manual (
   ativo boolean not null default true,
   origem text not null default 'upload'
     check (origem in ('upload', 'sharepoint')),
-  sharepoint_item_id text,                     -- só quando origem = 'sharepoint' (semana 3)
+  sharepoint_item_id text,                     -- id do arquivo na Microsoft Graph (origem = 'sharepoint')
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()
 );
+-- Importação do SharePoint: o eTag muda quando o arquivo é alterado lá,
+-- e é assim que a sincronização sabe que precisa baixar de novo. Em
+-- "alter table ... if not exists" para quem já rodou a versão anterior.
+alter table manual add column if not exists sharepoint_etag text;
+alter table manual add column if not exists sharepoint_web_url text;     -- link para abrir no SharePoint
+alter table manual add column if not exists sharepoint_caminho text;     -- subpasta dentro da pasta sincronizada
+create unique index if not exists idx_manual_sharepoint_item on manual (sharepoint_item_id)
+  where sharepoint_item_id is not null;
+
 create index if not exists idx_manual_categoria on manual (categoria_id);
 create index if not exists idx_manual_busca on manual (ativo, status);
 

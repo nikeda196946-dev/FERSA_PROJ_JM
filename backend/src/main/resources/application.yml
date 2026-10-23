@@ -64,3 +64,20 @@ fersa:
     # Similaridade mínima (0 a 1) para um trecho entrar no prompt.
     # 0 = desligado; ajustar na semana 4 olhando os scores das 10 perguntas de teste.
     score-minimo: ${FERSA_RAG_SCORE_MINIMO:0}
+  sharepoint:
+    # App registrado no Entra ID (ver backend/README.md → "Conectar ao SharePoint").
+    # Vazio = importação do SharePoint desligada (o upload manual continua).
+    tenant-id: ${SHAREPOINT_TENANT_ID:}
+    client-id: ${SHAREPOINT_CLIENT_ID:}
+    client-secret: ${SHAREPOINT_CLIENT_SECRET:}
+    # URL do site, copiada do navegador (ex.: https://empresa.sharepoint.com/sites/Manuais)
+    site-url: ${SHAREPOINT_SITE_URL:}
+    # Pasta dentro da biblioteca "Documentos" do site (ex.: Manuais/Rolamentos). Vazio = raiz.
+    pasta: ${SHAREPOINT_PASTA:}
+    # Subpasta vira categoria do manual (criada se não existir)
+    categoria-pela-pasta: ${SHAREPOINT_CATEGORIA_PELA_PASTA:true}
+    # Sincronização automática (importa novos e alterados). 0 = só pelo botão no CMS.
+    sincronizacao-minutos: ${SHAREPOINT_SYNC_MINUTOS:0}
+    tamanho-maximo-mb: 25
+    login-url: ${SHAREPOINT_LOGIN_URL:https://login.microsoftonline.com}
+    graph-url: ${SHAREPOINT_GRAPH_URL:https://graph.microsoft.com/v1.0}

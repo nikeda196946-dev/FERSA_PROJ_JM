@@ -53,6 +53,16 @@ public class CategoriaRepository {
         }
     }
 
+    /** Sem diferenciar maiúsculas/minúsculas nem espaços nas pontas (usado ao criar categoria pela subpasta). */
+    public Optional<CategoriaDTO> buscarPorNome(String nome) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject(SELECT_BASE + " where lower(c.nome) = lower(trim(:nome))",
+                new MapSqlParameterSource("nome", nome), MAPPER));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
     public UUID inserir(String nome, String descricao, boolean ativo) {
         return jdbc.queryForObject(
             "insert into categoria (nome, descricao, ativo) values (:nome, :descricao, :ativo) returning id",

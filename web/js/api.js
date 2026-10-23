@@ -407,6 +407,14 @@ Object.assign(api, {
   async cmsExcluirManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}`, { method: "DELETE" }); },
   async cmsAbrirPdfManual(id){ return abrirPdfProtegido(`/api/admin/manuais/${encodeURIComponent(id)}/pdf`); },
 
+  /* ---------------- CMS: importação do SharePoint (só ADMIN) ---------------- */
+  async cmsSharePointStatus(){ return requisicaoBackend("/api/admin/sharepoint/status"); },
+  async cmsSharePointArquivos(){ return requisicaoBackend("/api/admin/sharepoint/arquivos"); },
+  async cmsSharePointImportar(itemIds, categoriaId, categoriaPelaPasta){
+    return requisicaoBackend("/api/admin/sharepoint/importar", { method: "POST",
+      body: JSON.stringify({ itemIds: itemIds || null, categoriaId: categoriaId || null, categoriaPelaPasta: !!categoriaPelaPasta }) });
+  },
+
   /* ---------------- CMS: categorias (só ADMIN) ---------------- */
   async cmsListarCategorias(){ return requisicaoBackend("/api/admin/categorias"); },
   async cmsSalvarCategoria(id, dados){
