@@ -5,9 +5,9 @@ com rolamentos — projeto acadêmico. Busca tradicional (Part Number,
 aplicação, veículo, modelo, categoria, texto), ficha da peça, abertura e
 atendimento de chamados já conectados ponta a ponta. O sistema de manuais
 com RAG (upload de PDF → embeddings do Gemini → pgvector → `/api/chat`
-com fontes) e o CMS de manuais/categorias já existem no backend; as telas
-de IA e admin do Web ainda são demonstrativas até a semana 3 do
-cronograma.
+com fontes) funciona no navegador: área pública sem login (Perguntar à IA
+e Manuais) e CMS de manuais e categorias para o ADMIN. As seções do CMS de
+peças/ferramentas/problemas continuam demonstrativas (marcadas "demo").
 
 ## Estrutura do repositório
 
@@ -63,10 +63,8 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 
 ## O que falta (nesta ordem)
 
-1. Ligar o Web às rotas de manuais: busca + chat com fontes na área
-   pública, e o CMS (tabela de manuais, categorias, upload) no admin
-   (semana 3 do cronograma).
-2. Importar do SharePoint (semana 3; se travar, fica só o upload manual).
+1. Importar do SharePoint (semana 3; se travar, fica só o upload manual).
+2. Semana 4: 10 perguntas de teste, prints no README, slides e ensaio da demo.
 3. CMS de escrita do catálogo de peças no backend.
 4. Aplicativo Android, consumindo a mesma API.
 

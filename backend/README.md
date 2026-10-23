@@ -167,6 +167,7 @@ em `ChamadoService.buscarDetalhe`).
 | POST | `/api/admin/manuais` (multipart: `arquivo`, `titulo?`, `categoriaId?`) | ADMIN — responde 202, processa em segundo plano |
 | GET | `/api/admin/manuais` · `/api/admin/manuais/{id}` | ADMIN |
 | GET | `/api/admin/manuais/{id}/chunks` | ADMIN — conferir a ingestão |
+| GET | `/api/admin/manuais/{id}/pdf` | ADMIN — o PDF mesmo de manual inativo ou com erro |
 | PUT | `/api/admin/manuais/{id}` (`titulo`, `categoriaId`) | ADMIN |
 | PATCH | `/api/admin/manuais/{id}/ativo` (`ativo`) | ADMIN |
 | POST | `/api/admin/manuais/{id}/reprocessar` | ADMIN — 202 |
@@ -334,10 +335,8 @@ curl -X POST http://localhost:8080/api/chat -H "Content-Type: application/json" 
 
 1. Rodar `database/manuais.sql` no Supabase, pôr a `GEMINI_API_KEY` no
    `.env` e subir os 5 a 10 manuais reais (semana 1).
-2. Front da área pública (busca + chat com fontes) e do CMS consumindo as
-   rotas acima (semana 3).
-3. Importar do SharePoint: listar/baixar os PDFs de uma pasta e chamar
+2. Importar do SharePoint: listar/baixar os PDFs de uma pasta e chamar
    `ManualService.enviar(nome, bytes, titulo, categoriaId)` — o mesmo
    caminho do upload (semana 3).
-4. CMS de escrita do catálogo de peças (cadastrar/editar peça, ferramenta,
+3. CMS de escrita do catálogo de peças (cadastrar/editar peça, ferramenta,
    problema) continua pendente.
