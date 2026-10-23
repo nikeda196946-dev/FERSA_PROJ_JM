@@ -1,8 +1,10 @@
 # FERSA Care — Backend (Fase 3)
 
 API REST em Java + Spring Boot, falando com o Supabase (Postgres). Este
-pacote cobre **Segurança + Catálogo (busca e ficha da peça) + Chamados**.
-CMS de escrita e IA/RAG ficam para as próximas fases, como já combinado.
+pacote cobre **Segurança + Catálogo (busca e ficha da peça) + Chamados** e,
+do cronograma de 4 semanas do sistema de manuais, **ingestão de PDF,
+RAG (`/api/chat`) e o CMS de manuais/categorias** — ver a seção
+[Manuais + RAG](#manuais--rag) abaixo.
 
 ## Por que JdbcTemplate e não JPA/Hibernate?
 
@@ -39,7 +41,8 @@ pacote) antes de eu considerar a migração concluída. Ainda assim, rode
 
 - Java 21
 - Maven (ou o wrapper `./mvnw`, se vierem a adicionar um)
-- Projeto Supabase já criado, com `schema.sql` e `seed.sql` da Fase 2 rodados
+- Projeto Supabase já criado, com `schema.sql`, `seed.sql` e `manuais.sql` rodados
+- Uma chave do Gemini (https://aistudio.google.com/apikey) para a parte de manuais/RAG
 
 ## Variáveis de ambiente
 
@@ -59,6 +62,11 @@ cp .env.example .env
 | `SUPABASE_JWT_ISSUER` | idem | `https://<project-ref>.supabase.co/auth/v1` |
 | `FERSA_CORS_ORIGINS` | origem do Web em dev | `http://127.0.0.1:5500,http://localhost:5500` |
 | `PORT` | opcional — porta da API | `8080` |
+| `GEMINI_API_KEY` | não é do Supabase: https://aistudio.google.com/apikey | — |
+| `GEMINI_CHAT_MODEL` | opcional — modelo que escreve a resposta do chat | `gemini-2.5-flash` |
+| `GEMINI_EMBEDDING_MODEL` | opcional — modelo de embeddings | `gemini-embedding-001` |
+| `FERSA_UPLOAD_MAX` | opcional — tamanho máximo do PDF | `25MB` |
+| `FERSA_RAG_SCORE_MINIMO` | opcional — similaridade mínima de um trecho (0 a 1); 0 = desligado | `0` |
 
 ## Como rodar
 
@@ -143,6 +151,19 @@ em `ChamadoService.buscarDetalhe`).
 | GET | `/api/v1/chamados/{id}` | dono do chamado, ou TECNICO/ADMIN |
 | POST | `/api/v1/chamados/{id}/assumir` | TECNICO, ADMIN |
 | POST | `/api/v1/chamados/{id}/solucao` | TECNICO, ADMIN |
+| POST | `/api/chat` | **público** — pergunta → resposta + fontes |
+| GET | `/api/manuais?termo=&categoriaId=` | **público** — só manuais ativos e prontos |
+| GET | `/api/manuais/{id}/pdf` | **público** — o PDF, para abrir a fonte citada |
+| GET | `/api/categorias` | **público** — só categorias ativas |
+| POST | `/api/admin/manuais` (multipart: `arquivo`, `titulo?`, `categoriaId?`) | ADMIN — responde 202, processa em segundo plano |
+| GET | `/api/admin/manuais` · `/api/admin/manuais/{id}` | ADMIN |
+| GET | `/api/admin/manuais/{id}/chunks` | ADMIN — conferir a ingestão |
+| PUT | `/api/admin/manuais/{id}` (`titulo`, `categoriaId`) | ADMIN |
+| PATCH | `/api/admin/manuais/{id}/ativo` (`ativo`) | ADMIN |
+| POST | `/api/admin/manuais/{id}/reprocessar` | ADMIN — 202 |
+| DELETE | `/api/admin/manuais/{id}` | ADMIN |
+| GET · POST | `/api/admin/categorias` | ADMIN |
+| GET · PUT · DELETE | `/api/admin/categorias/{id}` (`nome`, `descricao?`, `ativo?`) | ADMIN |
 
 ## Estrutura
 
@@ -162,22 +183,127 @@ src/main/java/com/fersacare/api/
 │   ├── repository/         → SQL (PecaRepository, FerramentaRepository, …)
 │   ├── service/            → PecaService (monta a ficha completa)
 │   └── controller/         → PecaController
-└── chamados/            → abrir, listar, assumir, registrar solução
-    ├── model/              → StatusChamado, PrioridadeChamado (enums)
-    ├── dto/                → contratos da API
-    ├── repository/         → ChamadoRepository, ChamadoHistoricoRepository
-    ├── service/            → ChamadoService (regras: quem vê o quê, transições de status)
-    └── controller/         → ChamadoController
+├── chamados/            → abrir, listar, assumir, registrar solução
+│   ├── model/              → StatusChamado, PrioridadeChamado (enums)
+│   ├── dto/                → contratos da API
+│   ├── repository/         → ChamadoRepository, ChamadoHistoricoRepository
+│   ├── service/            → ChamadoService (regras: quem vê o quê, transições de status)
+│   └── controller/         → ChamadoController
+├── ia/                  → GeminiClient (embeddings + geração), GeminiConfig
+├── manuais/             → manuais em PDF, chunks e categorias
+│   ├── model/              → StatusManual (PROCESSANDO, PRONTO, ERRO)
+│   ├── dto/                → contratos da API
+│   ├── repository/         → ManualRepository, ManualChunkRepository (busca vetorial), CategoriaRepository
+│   ├── service/            → PdfExtractor (PDFBox), Chunker, IngestaoService (@Async),
+│   │                         ManualService e CategoriaService (regras do CMS)
+│   └── controller/         → AdminManualController, AdminCategoriaController, ManualPublicoController
+└── rag/                 → ChatService (prompt + fontes), ChatController (/api/chat)
 ```
 
 Nomenclatura em linha com o que foi combinado no início do projeto:
 Controller / Service / Repository / Model / DTO / Config / Security.
 
+## Manuais + RAG
+
+Implementa as semanas 1 e 2 do cronograma (e a parte de backend do CMS da
+semana 3). Antes de tudo, rode `database/manuais.sql` no SQL Editor do
+Supabase e coloque `GEMINI_API_KEY` no `.env`.
+
+### Como funciona
+
+```
+Admin sobe PDF ─▶ POST /api/admin/manuais ─▶ manual (status PROCESSANDO), responde 202
+                                               │  em segundo plano (IngestaoService):
+                                               ▼
+              PDFBox (texto por página) ─▶ Chunker (~1200 caracteres, 200 de sobreposição)
+                 ─▶ Gemini gemini-embedding-001 (768 dimensões, RETRIEVAL_DOCUMENT)
+                 ─▶ manual_chunk (pgvector) ─▶ status PRONTO  (ou ERRO + mensagem)
+
+Pergunta ─▶ POST /api/chat ─▶ embedding da pergunta (RETRIEVAL_QUERY)
+   ─▶ top 5 por similaridade de cosseno, só manuais ativo = true e status = 'pronto'
+   ─▶ prompt (regras + trechos [1]..[5] + pergunta) ─▶ Gemini Flash
+   ─▶ { resposta, encontrou, fontes: [manual, página, trecho, score], modelo }
+```
+
+Decisões que valem saber:
+
+- **"Não encontrei nos manuais"**: se a busca não acha nada, o modelo nem é
+  chamado. Se acha trechos que não respondem, o prompt manda o modelo
+  responder exatamente `Não encontrei essa informação nos manuais.` — e aí
+  `encontrou` vem `false` e `fontes` vazio.
+- **Fontes**: a resposta cita os trechos como `[1]`, `[2]`…; `fontes` traz
+  só os citados (se o modelo não citar nenhum, traz todos os usados).
+- **PDF escaneado** (só imagem) não tem texto: o manual vai para `ERRO` com
+  uma mensagem explicando. Não há OCR — separe manuais com texto selecionável.
+- **Mesmo PDF duas vezes** é recusado (hash SHA-256).
+- **Reprocessar** que falha não apaga os chunks antigos — o manual só fica
+  em `ERRO` (e fora da busca) até reprocessar com sucesso.
+- **API reiniciou no meio de uma ingestão**: na subida, o que estava
+  `PROCESSANDO` vira `ERRO` com "clique em reprocessar".
+- **Login de admin** é o mesmo login do Supabase (não há senha própria no
+  backend): o usuário precisa ter `profiles.perfil = 'ADMIN'`. `/api/admin/**`
+  é barrado no `SecurityConfig` e de novo com `@PreAuthorize` nos controllers.
+- **Cota do Gemini**: em HTTP 429 o cliente espera e tenta de novo (até 4
+  vezes); erro definitivo (chave inválida etc.) vira `ERRO` no manual ou
+  `503` no chat.
+
+### Entrega da semana 1 — subir um PDF e ver os chunks
+
+```bash
+TOKEN_ADMIN="access_token de um usuário com perfil ADMIN"
+
+# (opcional) criar uma categoria
+curl -X POST http://localhost:8080/api/admin/categorias \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "Content-Type: application/json" \
+  -d '{"nome":"Rolamento de Cubo"}'
+
+# subir o PDF — responde 202 com status PROCESSANDO
+curl -X POST http://localhost:8080/api/admin/manuais \
+  -H "Authorization: Bearer $TOKEN_ADMIN" \
+  -F "arquivo=@/caminho/manual.pdf" -F "titulo=Manual FRS-1001"
+
+# acompanhar até PRONTO (ou ERRO, com mensagemErro)
+curl http://localhost:8080/api/admin/manuais/<id> -H "Authorization: Bearer $TOKEN_ADMIN"
+
+# ver os chunks (texto, página e dimensoesEmbedding = 768)
+curl http://localhost:8080/api/admin/manuais/<id>/chunks -H "Authorization: Bearer $TOKEN_ADMIN"
+```
+
+No Supabase dá para conferir direto: `select manual_id, ordem, pagina,
+vector_dims(embedding) from manual_chunk;`
+
+### Entrega da semana 2 — perguntar pelo Postman
+
+Importe `postman/FERSA-Manuais-RAG.postman_collection.json` no Postman,
+preencha as variáveis `baseUrl` e `tokenAdmin` e use a requisição
+**Chat — perguntar**. Ou por curl (não precisa de token):
+
+```bash
+curl -X POST http://localhost:8080/api/chat -H "Content-Type: application/json" \
+  -d '{"pergunta":"Qual o torque da porca do cubo do FRS-1001?"}'
+```
+
+### Testado como
+
+- `mvn test`: testes de unidade do Chunker, PdfExtractor (PDF gerado no
+  teste), GeminiClient (JSON enviado/recebido, lotes de 100, erros) e
+  ChatService (prompt, "não encontrei", fontes citadas).
+- Ponta a ponta contra Postgres 16 + pgvector local com `schema.sql`,
+  `seed.sql` e `manuais.sql`, com um servidor falso no lugar do Gemini e do
+  JWKS do Supabase: upload, PDF escaneado, PDF duplicado, PDF de 40 páginas
+  (257 chunks, 3 lotes de embedding), chat, ativar/desativar manual e
+  categoria, reprocessar, excluir, 401/403 nas rotas admin. **Ainda não foi
+  rodado contra o Gemini de verdade** — primeira coisa a conferir com a
+  chave real.
+
 ## Próximos passos
 
-1. Rodar `mvn clean compile` depois da reorganização de pacotes, por garantia.
-2. CMS de escrita (cadastrar/editar peça, ferramenta, problema) — próxima
-   fatia do backend.
-3. Módulo de IA/RAG (`/api/v1/ia`, `/api/v1/rag`) — depois do PoC.
-4. O Web já está conectado (ver `../web/README.md`) — falta só CMS e IA,
-   que continuam no mock até os itens acima.
+1. Rodar `database/manuais.sql` no Supabase, pôr a `GEMINI_API_KEY` no
+   `.env` e subir os 5 a 10 manuais reais (semana 1).
+2. Front da área pública (busca + chat com fontes) e do CMS consumindo as
+   rotas acima (semana 3).
+3. Importar do SharePoint: listar/baixar os PDFs de uma pasta e chamar
+   `ManualService.enviar(nome, bytes, titulo, categoriaId)` — o mesmo
+   caminho do upload (semana 3).
+4. CMS de escrita do catálogo de peças (cadastrar/editar peça, ferramenta,
+   problema) continua pendente.

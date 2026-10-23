@@ -3,6 +3,7 @@ package com.fersacare.api.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,6 +26,11 @@ import org.springframework.security.web.SecurityFilterChain;
  *    funciona sem precisarmos chamar o Supabase a cada request.
  * 2) O issuer é validado explicitamente (createDefaultWithIssuer),
  *    para rejeitar um JWT válido mas emitido por outro projeto Supabase.
+ *
+ * Rotas: /api/manuais, /api/categorias e /api/chat são públicas (área
+ * sem login do sistema de manuais); /api/admin/** exige perfil ADMIN — o
+ * "login de admin" é o mesmo login do Supabase, com profiles.perfil = ADMIN.
+ * O resto continua exigindo qualquer usuário autenticado.
  *
  * O CORS (quem pode chamar a API a partir do navegador) está em
  * config.CorsConfig — o Spring Security detecta aquele bean sozinho.
@@ -55,6 +61,11 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
+                // Área pública do sistema de manuais: busca, PDF da fonte e chat
+                .requestMatchers(HttpMethod.GET, "/api/manuais", "/api/manuais/*/pdf", "/api/categorias").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/chat").permitAll()
+                // CMS de manuais/categorias: só ADMIN (os controllers repetem com @PreAuthorize)
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
