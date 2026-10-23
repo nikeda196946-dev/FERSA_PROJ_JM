@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -117,6 +118,33 @@ class GeminiClientTest {
 
         assertThat(g.texto()).isEqualTo("Aplique 450 Nm [1].");
         assertThat(g.modelo()).isEqualTo("gemini-3.8-flash");
+    }
+
+    @Test
+    void comEsquemaPedeJsonEstruturadoParaAApi() {
+        Map<String, Object> esquema = Map.of(
+            "type", "OBJECT",
+            "properties", Map.of("chunksUtilizados", Map.of("type", "ARRAY", "items", Map.of("type", "INTEGER"))));
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
+            .andExpect(jsonPath("$.generationConfig.responseMimeType").value("application/json"))
+            .andExpect(jsonPath("$.generationConfig.responseSchema.type").value("OBJECT"))
+            .andExpect(jsonPath("$.generationConfig.responseSchema.properties.chunksUtilizados.type").value("ARRAY"))
+            .andRespond(withSuccess("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"{}\"}]}}]}",
+                MediaType.APPLICATION_JSON));
+
+        assertThat(cliente.gerar("r", "p", esquema).texto()).isEqualTo("{}");
+        servidor.verify();
+    }
+
+    @Test
+    void semEsquemaNaoMandaCamposDeJson() {
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
+            .andExpect(jsonPath("$.generationConfig.responseMimeType").doesNotExist())
+            .andExpect(jsonPath("$.generationConfig.responseSchema").doesNotExist())
+            .andRespond(withSuccess("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"ok\"}]}}]}",
+                MediaType.APPLICATION_JSON));
+
+        assertThat(cliente.gerar("r", "p").texto()).isEqualTo("ok");
     }
 
     @Test

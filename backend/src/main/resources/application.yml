@@ -42,13 +42,15 @@ fersa:
     modelo-embedding: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
     # Precisa bater com vector(768) em database/manuais.sql
     embedding-dimensoes: 768
-    # "gemini-flash-latest" é um alias que o Google mantém apontando para o
-    # Flash mais novo (em out/2026: gemini-3.8-flash). O gemini-2.5-flash já
-    # devolve 404 para contas novas.
-    modelo-chat: ${GEMINI_CHAT_MODEL:gemini-flash-latest}
-    # Usado quando o principal responde 503 (alta demanda), 429, 404 ou estoura o tempo.
+    # Aliases que o Google mantém apontando para o modelo mais novo de cada
+    # linha (em out/2026: gemini-3.5-flash-lite e gemini-3.8-flash). O Lite é
+    # o principal porque, nos testes, respondeu em 2 a 9 s com a mesma
+    # qualidade, enquanto o Flash dava timeout, 503 (alta demanda) ou 429
+    # (cota do plano gratuito). O gemini-2.5-flash já devolve 404 para contas novas.
+    modelo-chat: ${GEMINI_CHAT_MODEL:gemini-flash-lite-latest}
+    # Usado quando o principal responde 503, 429, 404 ou estoura o tempo.
     # Vazio = sem reserva.
-    modelo-chat-reserva: ${GEMINI_CHAT_MODEL_RESERVA:gemini-flash-lite-latest}
+    modelo-chat-reserva: ${GEMINI_CHAT_MODEL_RESERVA:gemini-flash-latest}
     # thinkingLevel dos modelos Gemini 3+ ("low" ou "high"). "low" deixa a
     # resposta 2 a 3x mais rápida, o que basta para responder a partir de
     # trechos. Vazio = não manda (necessário se trocar para um modelo 2.5).
