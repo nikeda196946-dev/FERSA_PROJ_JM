@@ -5,9 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -31,7 +35,8 @@ class GeminiClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE).defaultHeader("x-goog-api-key", "chave");
         servidor = MockRestServiceServer.bindTo(builder).build();
-        cliente = new GeminiClient(builder.build(), "chave", "gemini-embedding-001", 3, "gemini-2.5-flash");
+        cliente = new GeminiClient(builder.build(), "chave", "gemini-embedding-001", 3,
+            "gemini-flash-latest", "gemini-flash-lite-latest", "low");
     }
 
     @Test
@@ -92,22 +97,83 @@ class GeminiClientTest {
 
     @Test
     void gerarMandaInstrucaoDeSistemaELeOTexto() {
-        servidor.expect(once(), requestTo(BASE + "/models/gemini-2.5-flash:generateContent"))
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
             .andExpect(jsonPath("$.systemInstruction.parts[0].text").value("regras"))
+            .andExpect(jsonPath("$.systemInstruction.parts[0].thought").doesNotExist())
             .andExpect(jsonPath("$.contents[0].role").value("user"))
             .andExpect(jsonPath("$.contents[0].parts[0].text").value("pergunta"))
             .andExpect(jsonPath("$.generationConfig.temperature").value(0.2))
+            .andExpect(jsonPath("$.generationConfig.thinkingConfig.thinkingLevel").value("low"))
             .andRespond(withSuccess("""
-                {"candidates": [{"content": {"role": "model", "parts": [{"text": "Aplique 450 Nm "}, {"text": "[1]."}]},
-                  "finishReason": "STOP"}], "usageMetadata": {"totalTokenCount": 10}}
+                {"candidates": [{"content": {"role": "model", "parts": [
+                    {"text": "pensando...", "thought": true},
+                    {"text": "Aplique 450 Nm ", "thoughtSignature": "abc"},
+                    {"text": "[1]."}]},
+                  "finishReason": "STOP"}],
+                 "usageMetadata": {"totalTokenCount": 10}, "modelVersion": "gemini-3.8-flash"}
                 """, MediaType.APPLICATION_JSON));
 
-        assertThat(cliente.gerar("regras", "pergunta")).isEqualTo("Aplique 450 Nm [1].");
+        GeminiClient.Geracao g = cliente.gerar("regras", "pergunta");
+
+        assertThat(g.texto()).isEqualTo("Aplique 450 Nm [1].");
+        assertThat(g.modelo()).isEqualTo("gemini-3.8-flash");
+    }
+
+    @Test
+    void principalSobrecarregadoCaiNoReserva() {
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
+            .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\": {\"message\": \"This model is currently experiencing high demand.\"}}"));
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-lite-latest:generateContent"))
+            .andRespond(withSuccess("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"ok\"}]}}]}",
+                MediaType.APPLICATION_JSON));
+
+        GeminiClient.Geracao g = cliente.gerar("r", "p");
+
+        assertThat(g.texto()).isEqualTo("ok");
+        assertThat(g.modelo()).isEqualTo("gemini-flash-lite-latest"); // sem modelVersion, fica o nome pedido
+        servidor.verify();
+    }
+
+    @Test
+    void timeoutLendoORespostaCaiNoReserva() {
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
+            .andRespond(request -> {
+                // simula o Gemini mandando o status 200 e travando no meio do corpo
+                MockClientHttpResponse resposta = new MockClientHttpResponse(new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw new SocketTimeoutException("Read timed out");
+                    }
+                }, HttpStatus.OK);
+                resposta.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+                return resposta;
+            });
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-lite-latest:generateContent"))
+            .andRespond(withSuccess("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"ok\"}]}}]}",
+                MediaType.APPLICATION_JSON));
+
+        assertThat(cliente.gerar("r", "p").texto()).isEqualTo("ok");
+        servidor.verify();
+    }
+
+    @Test
+    void modeloAposentadoCaiNoReserva() {
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
+            .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\": {\"message\": \"no longer available\"}}"));
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-lite-latest:generateContent"))
+            .andRespond(withSuccess("{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"ok\"}]}}]}",
+                MediaType.APPLICATION_JSON));
+
+        assertThat(cliente.gerar("r", "p").texto()).isEqualTo("ok");
+        servidor.verify();
     }
 
     @Test
     void gerarSemTextoFalha() {
-        servidor.expect(once(), requestTo(BASE + "/models/gemini-2.5-flash:generateContent"))
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
             .andRespond(withSuccess("{\"candidates\": [{\"finishReason\": \"SAFETY\"}]}", MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> cliente.gerar("r", "p"))
@@ -116,8 +182,8 @@ class GeminiClientTest {
     }
 
     @Test
-    void erroDefinitivoNaoTentaDeNovo() {
-        servidor.expect(once(), requestTo(BASE + "/models/gemini-2.5-flash:generateContent"))
+    void erroDefinitivoNaoTentaDeNovoNemUsaReserva() {
+        servidor.expect(once(), requestTo(BASE + "/models/gemini-flash-latest:generateContent"))
             .andRespond(withStatus(HttpStatus.FORBIDDEN)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"error\": {\"message\": \"API key not valid\"}}"));
@@ -131,7 +197,7 @@ class GeminiClientTest {
 
     @Test
     void semChaveNemTentaChamar() {
-        GeminiClient semChave = new GeminiClient(RestClient.create(), " ", "m", 3, "c");
+        GeminiClient semChave = new GeminiClient(RestClient.create(), " ", "m", 3, "c", "", "");
         assertThatThrownBy(() -> semChave.embedPergunta("x"))
             .isInstanceOf(IaIndisponivelException.class)
             .hasMessageContaining("GEMINI_API_KEY");

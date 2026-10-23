@@ -63,7 +63,9 @@ cp .env.example .env
 | `FERSA_CORS_ORIGINS` | origem do Web em dev | `http://127.0.0.1:5500,http://localhost:5500` |
 | `PORT` | opcional — porta da API | `8080` |
 | `GEMINI_API_KEY` | não é do Supabase: https://aistudio.google.com/apikey | — |
-| `GEMINI_CHAT_MODEL` | opcional — modelo que escreve a resposta do chat | `gemini-2.5-flash` |
+| `GEMINI_CHAT_MODEL` | opcional — modelo que escreve a resposta do chat | `gemini-flash-latest` |
+| `GEMINI_CHAT_MODEL_RESERVA` | opcional — usado se o principal falhar (503, 429, 404, timeout); vazio = sem reserva | `gemini-flash-lite-latest` |
+| `GEMINI_NIVEL_RACIOCINIO` | opcional — `thinkingLevel` dos modelos Gemini 3+ (`low`/`high`); vazio = não manda | `low` |
 | `GEMINI_EMBEDDING_MODEL` | opcional — modelo de embeddings | `gemini-embedding-001` |
 | `FERSA_UPLOAD_MAX` | opcional — tamanho máximo do PDF | `25MB` |
 | `FERSA_RAG_SCORE_MINIMO` | opcional — similaridade mínima de um trecho (0 a 1); 0 = desligado | `0` |
@@ -243,9 +245,18 @@ Decisões que valem saber:
 - **Login de admin** é o mesmo login do Supabase (não há senha própria no
   backend): o usuário precisa ter `profiles.perfil = 'ADMIN'`. `/api/admin/**`
   é barrado no `SecurityConfig` e de novo com `@PreAuthorize` nos controllers.
-- **Cota do Gemini**: em HTTP 429 o cliente espera e tenta de novo (até 4
-  vezes); erro definitivo (chave inválida etc.) vira `ERRO` no manual ou
-  `503` no chat.
+- **Cota do Gemini**: nos embeddings (ingestão), HTTP 429/5xx/timeout são
+  repetidos até 4 vezes; erro definitivo (chave inválida etc.) vira `ERRO`
+  no manual.
+- **Modelo do chat e reserva**: o padrão é `gemini-flash-latest`, alias que
+  o Google mantém apontando para o Flash mais novo (o `gemini-2.5-flash` já
+  dá 404 para contas novas). Se ele responder 503 ("high demand"), 429, 404
+  ou passar de 25 s, o chat usa o reserva `gemini-flash-lite-latest`. Se os
+  dois falharem, o chat devolve `503`. O campo `modelo` da resposta diz
+  qual modelo respondeu de fato (ex.: `gemini-3.8-flash`).
+- **`thinkingLevel: low`**: os modelos Gemini 3+ "pensam" antes de
+  responder; `low` deixa a resposta 2 a 3x mais rápida. Ao trocar para um
+  modelo 2.5, deixe `GEMINI_NIVEL_RACIOCINIO` vazio (eles recusam o campo).
 
 ### Entrega da semana 1 — subir um PDF e ver os chunks
 
@@ -292,9 +303,15 @@ curl -X POST http://localhost:8080/api/chat -H "Content-Type: application/json" 
   `seed.sql` e `manuais.sql`, com um servidor falso no lugar do Gemini e do
   JWKS do Supabase: upload, PDF escaneado, PDF duplicado, PDF de 40 páginas
   (257 chunks, 3 lotes de embedding), chat, ativar/desativar manual e
-  categoria, reprocessar, excluir, 401/403 nas rotas admin. **Ainda não foi
-  rodado contra o Gemini de verdade** — primeira coisa a conferir com a
-  chave real.
+  categoria, reprocessar, excluir, 401/403 nas rotas admin.
+- Com o **Gemini real** (23/10/2026): manual de teste de 4 páginas
+  ingerido (4 chunks de 768 dimensões) e 7 perguntas — torque, graxa,
+  aquecimento do cubo, montagem, folga axial e troca do rolamento do
+  câmbio respondidas certo e com a página certa como fonte; "preço do
+  rolamento" e "capital da França" voltaram "não encontrei". Nesse dia o
+  `gemini-flash-latest` estava instável (503 de alta demanda e timeouts) e
+  quase todas as respostas vieram do reserva, em 1 a 9 s. Se continuar
+  assim perto da apresentação, use `GEMINI_CHAT_MODEL=gemini-flash-lite-latest`.
 
 ## Próximos passos
 

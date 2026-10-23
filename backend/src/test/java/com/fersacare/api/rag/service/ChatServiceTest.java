@@ -32,7 +32,7 @@ class ChatServiceTest {
     void setUp() {
         gemini = mock(GeminiClient.class);
         chunks = mock(ManualChunkRepository.class);
-        when(gemini.modeloChat()).thenReturn("gemini-2.5-flash");
+        when(gemini.modeloChat()).thenReturn("gemini-flash-latest");
         when(gemini.embedPergunta(anyString())).thenReturn(new float[] {1f, 0f});
         chat = new ChatService(gemini, chunks, 5, 0.0);
     }
@@ -56,7 +56,7 @@ class ChatServiceTest {
             trecho("Torque da porca: 450 Nm.", 2, 0.79)
         ));
         when(gemini.gerar(eq(ChatService.INSTRUCAO_SISTEMA), contains("Pergunta: qual o torque?")))
-            .thenReturn("Aplique 450 Nm [2].");
+            .thenReturn(new GeminiClient.Geracao("Aplique 450 Nm [2].", "gemini-3.8-flash"));
 
         ChatResponse r = chat.perguntar("  qual o torque?  ");
 
@@ -64,13 +64,14 @@ class ChatServiceTest {
         assertThat(r.resposta()).isEqualTo("Aplique 450 Nm [2].");
         assertThat(r.fontes()).extracting(FonteDTO::numero).containsExactly(2);
         assertThat(r.fontes().get(0).pagina()).isEqualTo(2);
-        assertThat(r.modelo()).isEqualTo("gemini-2.5-flash");
+        assertThat(r.modelo()).isEqualTo("gemini-3.8-flash");
     }
 
     @Test
     void modeloDizendoQueNaoEncontrouViraEncontrouFalse() {
         when(chunks.buscarSimilares(any(), anyInt(), anyDouble())).thenReturn(List.of(trecho("Graxa NLGI 2.", 1, 0.4)));
-        when(gemini.gerar(anyString(), anyString())).thenReturn("\"" + ChatService.NAO_ENCONTREI + "\"");
+        when(gemini.gerar(anyString(), anyString()))
+            .thenReturn(new GeminiClient.Geracao("\"" + ChatService.NAO_ENCONTREI + "\"", "gemini-3.8-flash"));
 
         ChatResponse r = chat.perguntar("qual a melhor pizza?");
 

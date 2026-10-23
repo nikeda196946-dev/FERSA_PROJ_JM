@@ -28,7 +28,10 @@ public class GeminiConfig {
     ) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(10));
-        requestFactory.setReadTimeout(Duration.ofSeconds(90)); // geração de resposta pode levar alguns segundos
+        // A geração costuma levar de 3 a 15 s (medido em out/2026 com
+        // thinkingLevel=low); acima de 25 s o modelo está travado e é melhor
+        // desistir e cair no modelo reserva (ver GeminiClient).
+        requestFactory.setReadTimeout(Duration.ofSeconds(25));
 
         return builder
             .baseUrl(baseUrl)

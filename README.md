@@ -57,7 +57,7 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 | Web | HTML, CSS, JavaScript (sem framework) |
 | Backend | Java 21, Spring Boot 3, Spring Security (Resource Server), JdbcTemplate |
 | Banco | Supabase (Postgres + pgvector) |
-| IA / RAG | Gemini (`gemini-embedding-001` + `gemini-2.5-flash`), PDFBox para ler os PDFs |
+| IA / RAG | Gemini (`gemini-embedding-001` + `gemini-flash-latest`, com `gemini-flash-lite-latest` de reserva), PDFBox para ler os PDFs |
 | Auth | Supabase Auth (JWT assinado, validado pelo backend via JWKS) |
 | Android | planejado — consumirá a mesma API do backend |
 

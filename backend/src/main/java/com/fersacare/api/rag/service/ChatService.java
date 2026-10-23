@@ -73,11 +73,12 @@ public class ChatService {
             return new ChatResponse(NAO_ENCONTREI, false, List.of(), gemini.modeloChat());
         }
 
-        String resposta = gemini.gerar(INSTRUCAO_SISTEMA, montarMensagem(p, trechos));
+        GeminiClient.Geracao geracao = gemini.gerar(INSTRUCAO_SISTEMA, montarMensagem(p, trechos));
+        String resposta = geracao.texto();
         if (resposta.isBlank() || resposta.replace("\"", "").strip().startsWith(NAO_ENCONTREI)) {
-            return new ChatResponse(NAO_ENCONTREI, false, List.of(), gemini.modeloChat());
+            return new ChatResponse(NAO_ENCONTREI, false, List.of(), geracao.modelo());
         }
-        return new ChatResponse(resposta, true, fontesCitadas(resposta, trechos), gemini.modeloChat());
+        return new ChatResponse(resposta, true, fontesCitadas(resposta, trechos), geracao.modelo());
     }
 
     static String montarMensagem(String pergunta, List<TrechoEncontrado> trechos) {
