@@ -6,7 +6,8 @@ aplicação, veículo, modelo, categoria, texto), ficha da peça, abertura e
 atendimento de chamados já conectados ponta a ponta. O sistema de manuais
 com RAG (upload de PDF → embeddings do Gemini → pgvector → `/api/chat`
 com fontes) funciona no navegador: área pública sem login (Perguntar à IA
-e Manuais) e CMS de manuais e categorias para o ADMIN. As seções do CMS de
+e Manuais) e CMS de manuais e categorias para o ADMIN, com importação dos
+PDFs de uma pasta do SharePoint (Microsoft Graph). As seções do CMS de
 peças/ferramentas/problemas continuam demonstrativas (marcadas "demo").
 
 ## Estrutura do repositório
@@ -29,7 +30,8 @@ Web (navegador)
    │  demais chamadas: Bearer <access_token> do Supabase
    ▼
 Backend Spring Boot  ──valida o JWT via JWKS──▶  Supabase Auth
-   │        └──embeddings + resposta do chat──▶  Gemini (Google AI)
+   │        ├──embeddings + resposta do chat──▶  Gemini (Google AI)
+   │        └──lê os PDFs (app do Entra ID)──▶  SharePoint (Microsoft Graph)
    ▼
 Supabase Postgres (+ pgvector: chunks dos manuais)
 ```
@@ -63,7 +65,9 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 
 ## O que falta (nesta ordem)
 
-1. Importar do SharePoint (semana 3; se travar, fica só o upload manual).
+1. Registrar o app no Entra ID e testar a importação com o SharePoint real
+   (a integração já existe — passo a passo em `backend/README.md`, seção
+   "Conectar ao SharePoint").
 2. Semana 4: 10 perguntas de teste, prints no README, slides e ensaio da demo.
 3. CMS de escrita do catálogo de peças no backend.
 4. Aplicativo Android, consumindo a mesma API.

@@ -18,6 +18,8 @@ public record ManualDTO(
     String mensagemErro,        // só quando status = ERRO
     boolean ativo,
     String origem,              // upload | sharepoint
+    String sharepointUrl,       // link para abrir o arquivo no SharePoint (só origem = sharepoint)
+    String sharepointCaminho,   // subpasta de onde veio, relativa à pasta sincronizada
     Instant criadoEm,
     Instant atualizadoEm
 ) {}

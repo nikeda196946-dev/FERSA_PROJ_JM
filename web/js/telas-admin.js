@@ -252,8 +252,11 @@ rota("/admin/manuais", () => {
 
 function telaManuaisAdmin(estado){
   montarAdmin("manuais", `
-    ${cabAdmin("Manuais", "PDFs que alimentam a Busca por IA. Ao enviar, o texto é extraído, dividido em trechos e indexado em segundo plano.",
-      `<button class="btn-principal" id="btn-enviar-pdf">${ICONES.mais} Enviar PDF</button>`)}
+    ${cabAdmin("Manuais", "PDFs que alimentam a Busca por IA. Ao importar, o texto é extraído, dividido em trechos e indexado em segundo plano.",
+      `<div class="grupo-botoes">
+        <button class="btn-principal" id="btn-importar-sp">${ICONES.atualizar} Importar do SharePoint</button>
+        <button class="btn-secundario" id="btn-enviar-pdf">${ICONES.mais} Enviar PDF</button>
+      </div>`)}
     <div class="barra-ferramentas">
       <div class="campo-busca">${ICONES.busca}<input id="busca-manuais-admin" type="text" placeholder="Buscar por título, arquivo ou categoria…"></div>
       <select id="filtro-status-manual" aria-label="Filtrar por status">
@@ -264,6 +267,7 @@ function telaManuaisAdmin(estado){
     <div id="tabela-manuais"></div>`);
 
   document.getElementById("btn-enviar-pdf").addEventListener("click", () => abrirEnvioManuais(estado));
+  document.getElementById("btn-importar-sp").addEventListener("click", () => abrirImportacaoSharePoint(estado));
   document.getElementById("busca-manuais-admin").addEventListener("input", (e) => { estado.termo = e.target.value; pintarTabelaManuais(estado); });
   document.getElementById("filtro-status-manual").addEventListener("change", (e) => { estado.status = e.target.value; pintarTabelaManuais(estado); });
   document.getElementById("tabela-manuais").addEventListener("click", (e) => acaoManual(e, estado));
@@ -309,7 +313,9 @@ function pintarTabelaManuais(estado){
 function linhaManualAdmin(m){
   const processando = m.status === "PROCESSANDO";
   return `<tr>
-    <td data-rot="Manual"><strong>${esc(m.titulo)}</strong><br><small class="texto-suave">${esc(m.nomeArquivo)} · ${formatarTamanho(m.tamanhoBytes)}</small>
+    <td data-rot="Manual"><strong>${esc(m.titulo)}</strong><br><small class="texto-suave">${m.origem === "sharepoint"
+        ? `<a class="selo-origem" href="${esc(m.sharepointUrl || "#")}" target="_blank" rel="noopener" title="Abrir no SharePoint">SharePoint</a> ${m.sharepointCaminho ? esc(m.sharepointCaminho) + "/" : ""}`
+        : ""}${esc(m.nomeArquivo)} · ${formatarTamanho(m.tamanhoBytes)}</small>
       ${m.status === "ERRO" && m.mensagemErro ? `<div class="erro-doc">${esc(m.mensagemErro)}</div>` : ""}</td>
     <td data-rot="Categoria">${m.categoriaNome ? esc(m.categoriaNome) : `<span class="texto-suave">Sem categoria</span>`}</td>
     <td data-rot="Páginas">${m.totalPaginas ?? "—"}</td>
@@ -487,6 +493,108 @@ function abrirEnvioManuais(estado){
     btnEnviar.textContent = "Concluído";
     if(enviados) toast(`${enviados} manua${enviados > 1 ? "is enviados" : "l enviado"}. A lista atualiza sozinha quando o processamento terminar.`, "ok");
     if(enviados === arquivos.length) setTimeout(fechar, 900);
+  });
+}
+
+/* ---------------- Importar do SharePoint (real: /api/admin/sharepoint) ---------------- */
+const ROTULO_SITUACAO_SP = { NOVO: "Novo", IMPORTADO: "Já importado", ALTERADO: "Alterado no SharePoint", GRANDE_DEMAIS: "Grande demais" };
+const CLASSE_SITUACAO_SP = { NOVO: "b-info", IMPORTADO: "b-ok", ALTERADO: "b-alerta", GRANDE_DEMAIS: "b-erro" };
+const ROTULO_RESULTADO_SP = { IMPORTADO: "importado", ATUALIZADO: "atualizado", VINCULADO: "ligado ao existente", SEM_ALTERACAO: "sem alteração", IGNORADO: "ignorado", ERRO: "erro" };
+
+function abrirImportacaoSharePoint(estado){
+  const fundo = document.createElement("div");
+  fundo.className = "modal-fundo";
+  fundo.innerHTML = `
+    <div class="modal modal-larga modal-sp" role="dialog" aria-modal="true">
+      <div class="modal-cab"><h3>Importar do SharePoint</h3><button class="btn-fantasma" data-fechar aria-label="Fechar">✕</button></div>
+      <div class="modal-corpo" id="sp-corpo">${estadoCarregando("Verificando a conexão com o SharePoint…")}</div>
+    </div>`;
+  document.body.appendChild(fundo);
+  const fechar = () => fundo.remove();
+  fundo.addEventListener("click", (e) => { if(e.target === fundo) fechar(); });
+  fundo.querySelector("[data-fechar]").addEventListener("click", fechar);
+  const corpo = fundo.querySelector("#sp-corpo");
+
+  api.cmsSharePointStatus().then(({ status, categoriaPelaPastaPadrao }) => {
+    if(!status.configurado){
+      corpo.innerHTML = `
+        <div class="aviso aviso-cuidado">
+          <h4>${ICONES.alerta} SharePoint ainda não configurado</h4>
+          <p>Falta no <code>.env</code> do backend: <strong>${esc(status.faltando)}</strong>.</p>
+          <p style="margin-top:6px;">O passo a passo para registrar o app no Entra ID está no <code>backend/README.md</code>, seção "Conectar ao SharePoint". Enquanto isso, dá para usar o "Enviar PDF".</p>
+        </div>`;
+      return;
+    }
+    corpo.innerHTML = `
+      <dl class="chave-valor sp-origem">
+        <dt>Site</dt><dd><a class="link-simples" href="${esc(status.siteUrl)}" target="_blank" rel="noopener">${esc(status.siteUrl)}</a></dd>
+        <dt>Pasta</dt><dd>${status.pasta ? esc(status.pasta) : "raiz da biblioteca Documentos"} <span class="texto-suave">(e subpastas)</span></dd>
+        <dt>Automático</dt><dd>${status.sincronizacaoMinutos ? `a cada ${status.sincronizacaoMinutos} min` : "desligado — só por este botão"}${status.ultimaSincronizacao
+          ? ` · última: ${esc(new Date(status.ultimaSincronizacao).toLocaleString("pt-BR"))} — ${esc(status.resumoUltimaSincronizacao || "")}` : ""}</dd>
+      </dl>
+      <div id="sp-lista">${estadoCarregando("Lendo os PDFs da pasta…")}</div>`;
+    carregarListaSharePoint(fundo, estado, categoriaPelaPastaPadrao, fechar);
+  }).catch(err => { corpo.innerHTML = estadoErro({ titulo: "Não foi possível verificar o SharePoint", texto: err.message }); });
+}
+
+function carregarListaSharePoint(fundo, estado, categoriaPelaPastaPadrao, fechar){
+  const cont = fundo.querySelector("#sp-lista");
+  api.cmsSharePointArquivos().then(arquivos => {
+    if(!arquivos.length){
+      cont.innerHTML = estadoVazio({ titulo: "Nenhum PDF na pasta", texto: "Coloque os manuais em PDF na pasta configurada do SharePoint e clique em atualizar.",
+        acaoHtml: `<button class="btn-secundario" data-sp-recarregar>${ICONES.atualizar} Atualizar</button>` });
+      cont.querySelector("[data-sp-recarregar]").addEventListener("click", () => { cont.innerHTML = estadoCarregando("Lendo os PDFs da pasta…"); carregarListaSharePoint(fundo, estado, categoriaPelaPastaPadrao, fechar); });
+      return;
+    }
+    const pendentes = arquivos.filter(a => a.situacao === "NOVO" || a.situacao === "ALTERADO").length;
+    cont.innerHTML = `
+      <p class="sp-resumo">${arquivos.length} PDF(s) na pasta · <strong>${pendentes}</strong> novo(s) ou alterado(s) para importar.</p>
+      <div class="tabela-wrap sp-tabela"><table class="tabela">
+        <thead><tr><th><input type="checkbox" id="sp-todos" aria-label="Marcar todos"></th><th>Arquivo</th><th>Modificado</th><th>Situação</th></tr></thead>
+        <tbody>${arquivos.map(a => `<tr>
+          <td><input type="checkbox" data-sp-item="${esc(a.itemId)}" ${a.situacao === "NOVO" || a.situacao === "ALTERADO" ? "checked" : ""} ${a.situacao === "GRANDE_DEMAIS" ? "disabled" : ""}></td>
+          <td data-rot="Arquivo"><strong>${esc(a.nome)}</strong><br><small class="texto-suave">${a.caminho ? esc(a.caminho) + " · " : ""}${formatarTamanho(a.tamanhoBytes)}${a.webUrl ? ` · <a href="${esc(a.webUrl)}" target="_blank" rel="noopener">abrir</a>` : ""}</small></td>
+          <td data-rot="Modificado">${a.modificadoEm ? esc(new Date(a.modificadoEm).toLocaleDateString("pt-BR")) : "—"}</td>
+          <td data-rot="Situação"><span class="badge ${CLASSE_SITUACAO_SP[a.situacao]}">${esc(ROTULO_SITUACAO_SP[a.situacao])}</span>${a.manualTitulo ? `<br><small class="texto-suave">${esc(a.manualTitulo)}</small>` : ""}</td>
+        </tr>`).join("")}</tbody>
+      </table></div>
+      <div class="linha-campos sp-opcoes">
+        <label class="interruptor"><input type="checkbox" id="sp-pela-pasta" ${categoriaPelaPastaPadrao ? "checked" : ""}><i></i> Usar a subpasta como categoria (cria se não existir)</label>
+        <div class="campo"><label for="sp-categoria">Categoria dos arquivos fora de subpasta</label><select id="sp-categoria">${opcoesCategoria(estado.categorias.filter(c => c.ativo), null)}</select></div>
+      </div>
+      <ul class="lista-upload" id="sp-resultado"></ul>
+      <div class="modal-acoes">
+        <button type="button" class="btn-fantasma" data-sp-recarregar>${ICONES.atualizar} Atualizar lista</button>
+        <button type="button" class="btn-principal" id="sp-importar"></button>
+      </div>`;
+
+    const marcados = () => Array.from(cont.querySelectorAll("[data-sp-item]:checked")).map(c => c.getAttribute("data-sp-item"));
+    const btn = cont.querySelector("#sp-importar");
+    const atualizarBotao = () => { const n = marcados().length; btn.textContent = n ? `Importar ${n} arquivo(s)` : "Nada selecionado"; btn.disabled = !n; };
+    atualizarBotao();
+    cont.addEventListener("change", (e) => {
+      if(e.target.id === "sp-todos") cont.querySelectorAll("[data-sp-item]:not(:disabled)").forEach(c => { c.checked = e.target.checked; });
+      atualizarBotao();
+    });
+    cont.querySelector("[data-sp-recarregar]").addEventListener("click", () => { cont.innerHTML = estadoCarregando("Lendo os PDFs da pasta…"); carregarListaSharePoint(fundo, estado, categoriaPelaPastaPadrao, fechar); });
+
+    btn.addEventListener("click", () => {
+      const itens = marcados();
+      btn.disabled = true; btn.innerHTML = `<span class="spinner-mini"></span> Baixando e importando…`;
+      api.cmsSharePointImportar(itens, cont.querySelector("#sp-categoria").value, cont.querySelector("#sp-pela-pasta").checked).then(resultados => {
+        cont.querySelector("#sp-resultado").innerHTML = resultados.map(r => `
+          <li class="${r.resultado === "ERRO" ? "erro" : ["IMPORTADO", "ATUALIZADO", "VINCULADO"].includes(r.resultado) ? "ok" : ""}">
+            <span>${esc(r.nome || r.itemId)}</span><small>${esc(ROTULO_RESULTADO_SP[r.resultado])} — ${esc(r.mensagem || "")}</small></li>`).join("");
+        const ok = resultados.filter(r => r.resultado === "IMPORTADO" || r.resultado === "ATUALIZADO").length;
+        btn.textContent = "Concluído";
+        if(ok) toast(`${ok} manual(is) do SharePoint em processamento. A lista atualiza sozinha.`, "ok");
+        return Promise.all([api.cmsListarManuais(), api.cmsListarCategorias()]).then(([manuais, categorias]) => {
+          estado.manuais = manuais; estado.categorias = categorias; pintarTabelaManuais(estado);
+        });
+      }).catch(err => { btn.disabled = false; atualizarBotao(); toast(err.message, "erro"); });
+    });
+  }).catch(err => {
+    cont.innerHTML = estadoErro({ titulo: "Não foi possível ler a pasta do SharePoint", texto: err.message });
   });
 }
 

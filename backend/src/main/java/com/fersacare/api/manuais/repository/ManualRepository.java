@@ -32,10 +32,13 @@ public class ManualRepository {
 
     public record ArquivoPdf(String nomeArquivo, byte[] conteudo) {}
 
+    /** O que a sincronização precisa saber de um manual que veio do SharePoint. */
+    public record VinculoSharePoint(UUID manualId, String itemId, String etag, String titulo, StatusManual status) {}
+
     private static final String SELECT_BASE = """
         select m.id, m.titulo, m.categoria_id, c.nome as categoria_nome, m.nome_arquivo, m.tamanho_bytes,
                m.total_paginas, m.total_chunks, m.status, m.mensagem_erro, m.ativo, m.origem,
-               m.criado_em, m.atualizado_em
+               m.sharepoint_web_url, m.sharepoint_caminho, m.criado_em, m.atualizado_em
         from manual m
         left join categoria c on c.id = m.categoria_id
         """;
@@ -56,6 +59,8 @@ public class ManualRepository {
         rs.getString("mensagem_erro"),
         rs.getBoolean("ativo"),
         rs.getString("origem"),
+        rs.getString("sharepoint_web_url"),
+        rs.getString("sharepoint_caminho"),
         rs.getTimestamp("criado_em").toInstant(),
         rs.getTimestamp("atualizado_em").toInstant()
     );
@@ -74,6 +79,87 @@ public class ManualRepository {
                 .addValue("hash", hashSha256)
                 .addValue("pdf", pdf),
             UUID.class);
+    }
+
+    /** Manual novo vindo do SharePoint: guarda o id do arquivo e o eTag para as próximas sincronizações. */
+    public UUID inserirDoSharePoint(String titulo, UUID categoriaId, String nomeArquivo, byte[] pdf, String hashSha256,
+                                    String itemId, String etag, String webUrl, String caminho) {
+        return jdbc.queryForObject("""
+            insert into manual (titulo, categoria_id, nome_arquivo, tamanho_bytes, hash_sha256, arquivo_pdf, status,
+                                origem, sharepoint_item_id, sharepoint_etag, sharepoint_web_url, sharepoint_caminho)
+            values (:titulo, :categoriaId, :nomeArquivo, :tamanho, :hash, :pdf, 'processando',
+                    'sharepoint', :itemId, :etag, :webUrl, :caminho)
+            returning id
+            """,
+            new MapSqlParameterSource()
+                .addValue("titulo", titulo)
+                .addValue("categoriaId", categoriaId, Types.OTHER)
+                .addValue("nomeArquivo", nomeArquivo)
+                .addValue("tamanho", pdf.length)
+                .addValue("hash", hashSha256)
+                .addValue("pdf", pdf)
+                .addValue("itemId", itemId)
+                .addValue("etag", etag)
+                .addValue("webUrl", webUrl)
+                .addValue("caminho", caminho),
+            UUID.class);
+    }
+
+    /**
+     * Arquivo alterado no SharePoint: troca o PDF e volta para 'processando'.
+     * Título e categoria ficam como o admin deixou. Devolve false se o manual
+     * já estava processando (aí a sincronização tenta de novo da próxima vez).
+     */
+    public boolean atualizarDoSharePoint(UUID id, String nomeArquivo, byte[] pdf, String hashSha256,
+                                         String etag, String webUrl, String caminho) {
+        return jdbc.update("""
+            update manual set nome_arquivo = :nomeArquivo, tamanho_bytes = :tamanho, hash_sha256 = :hash,
+                   arquivo_pdf = :pdf, sharepoint_etag = :etag, sharepoint_web_url = :webUrl,
+                   sharepoint_caminho = :caminho, status = 'processando', mensagem_erro = null, atualizado_em = now()
+            where id = :id and status <> 'processando'
+            """,
+            new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("nomeArquivo", nomeArquivo)
+                .addValue("tamanho", pdf.length)
+                .addValue("hash", hashSha256)
+                .addValue("pdf", pdf)
+                .addValue("etag", etag)
+                .addValue("webUrl", webUrl)
+                .addValue("caminho", caminho)) == 1;
+    }
+
+    /**
+     * Manual que já estava no sistema (enviado à mão) e cujo PDF também está
+     * no SharePoint: passa a ser acompanhado pela sincronização, sem reprocessar.
+     * Só liga se ele ainda não estiver ligado a outro arquivo.
+     */
+    public boolean vincularAoSharePoint(UUID id, String itemId, String etag, String webUrl, String caminho) {
+        return jdbc.update("""
+            update manual set origem = 'sharepoint', sharepoint_item_id = :itemId, sharepoint_etag = :etag,
+                   sharepoint_web_url = :webUrl, sharepoint_caminho = :caminho, atualizado_em = now()
+            where id = :id and sharepoint_item_id is null
+            """,
+            new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("itemId", itemId)
+                .addValue("etag", etag)
+                .addValue("webUrl", webUrl)
+                .addValue("caminho", caminho)) == 1;
+    }
+
+    /** Todos os manuais que vieram do SharePoint, pelo id do arquivo lá. */
+    public List<VinculoSharePoint> listarVinculosSharePoint() {
+        return jdbc.query("""
+            select id, sharepoint_item_id, sharepoint_etag, titulo, status
+            from manual where sharepoint_item_id is not null
+            """,
+            (rs, rowNum) -> new VinculoSharePoint(
+                UUID.fromString(rs.getString("id")),
+                rs.getString("sharepoint_item_id"),
+                rs.getString("sharepoint_etag"),
+                rs.getString("titulo"),
+                StatusManual.doBanco(rs.getString("status"))));
     }
 
     public Optional<ManualDTO> buscarPorId(UUID id) {

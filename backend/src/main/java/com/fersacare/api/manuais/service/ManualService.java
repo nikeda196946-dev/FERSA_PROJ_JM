@@ -59,8 +59,8 @@ public class ManualService {
     }
 
     /**
-     * Ponto de entrada comum do upload manual e (na semana 3) da importação
-     * do SharePoint: os dois só precisam entregar nome + bytes do PDF.
+     * Upload manual (multipart) e qualquer outra origem que só tenha nome +
+     * bytes do PDF. A importação do SharePoint usa importarDoSharePoint.
      */
     public ManualDTO enviar(String nomeOriginal, byte[] pdf, String titulo, UUID categoriaId) {
         if (!PdfExtractor.pareceSerPdf(pdf)) {
@@ -86,6 +86,60 @@ public class ManualService {
 
         // O insert acima já está commitado (não há transação aberta aqui),
         // então a thread da ingestão enxerga o manual.
+        ingestaoService.processarEmSegundoPlano(id);
+        return buscar(id);
+    }
+
+    /**
+     * Manual novo vindo do SharePoint (chamado pela sincronização). Mesmo
+     * caminho do upload — validação, hash e ingestão em segundo plano —, mas
+     * guardando o id do arquivo e o eTag para as próximas sincronizações.
+     */
+    public ManualDTO importarDoSharePoint(String nomeOriginal, byte[] pdf, UUID categoriaId,
+                                          String itemId, String etag, String webUrl, String caminho) {
+        if (!PdfExtractor.pareceSerPdf(pdf)) {
+            throw new RequisicaoInvalidaException("O arquivo não é um PDF válido.");
+        }
+        String nomeArquivo = nomeSeguro(nomeOriginal);
+        String hash = sha256(pdf);
+        manualRepository.buscarPorHash(hash).ifPresent(existente -> {
+            throw new RequisicaoInvalidaException("Mesmo conteúdo do manual \"" + existente.titulo() + "\", que já está no sistema.");
+        });
+        UUID id;
+        try {
+            id = manualRepository.inserirDoSharePoint(tituloPadrao(nomeArquivo), categoriaId, nomeArquivo, pdf, hash,
+                itemId, etag, webUrl, caminho);
+        } catch (DuplicateKeyException e) {
+            throw new RequisicaoInvalidaException("Este arquivo já foi importado.");
+        }
+        ingestaoService.processarEmSegundoPlano(id);
+        return buscar(id);
+    }
+
+    /** Manual que já tem exatamente este PDF (mesmo hash), se houver. */
+    public java.util.Optional<ManualDTO> buscarPorConteudo(byte[] pdf) {
+        return manualRepository.buscarPorHash(sha256(pdf));
+    }
+
+    /** Arquivo alterado no SharePoint: troca o PDF e reprocessa (título e categoria ficam). */
+    public ManualDTO atualizarDoSharePoint(UUID id, String nomeOriginal, byte[] pdf,
+                                           String etag, String webUrl, String caminho) {
+        if (!PdfExtractor.pareceSerPdf(pdf)) {
+            throw new RequisicaoInvalidaException("O arquivo não é um PDF válido.");
+        }
+        String hash = sha256(pdf);
+        manualRepository.buscarPorHash(hash).filter(outro -> !outro.id().equals(id)).ifPresent(outro -> {
+            throw new RequisicaoInvalidaException("O conteúdo novo é igual ao do manual \"" + outro.titulo() + "\".");
+        });
+        boolean atualizou;
+        try {
+            atualizou = manualRepository.atualizarDoSharePoint(id, nomeSeguro(nomeOriginal), pdf, hash, etag, webUrl, caminho);
+        } catch (DuplicateKeyException e) {
+            throw new RequisicaoInvalidaException("O conteúdo novo é igual ao de outro manual.");
+        }
+        if (!atualizou) {
+            throw new RequisicaoInvalidaException("O manual está sendo processado agora; a próxima sincronização tenta de novo.");
+        }
         ingestaoService.processarEmSegundoPlano(id);
         return buscar(id);
     }

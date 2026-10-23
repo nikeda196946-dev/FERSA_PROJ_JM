@@ -653,3 +653,10 @@ h3 .selo-demo{margin-left:8px;vertical-align:middle;}
 .stats.stats-4{grid-template-columns:repeat(4,1fr);}
 @media (max-width:720px){.stats.stats-4{grid-template-columns:repeat(2,1fr);}}
 .campo > small.texto-suave{display:block;margin-top:6px;}
+.selo-origem{display:inline-block;font-size:0.7rem;font-weight:600;background:var(--info-bg);border:1px solid #B9D3E6;color:var(--info);padding:0 6px;margin-right:4px;text-decoration:none;}
+.modal.modal-sp{max-width:880px;}
+.modal-sp .modal-corpo{max-height:72vh;overflow-y:auto;}
+.sp-origem{margin-bottom:14px;}
+.sp-resumo{margin-bottom:8px;}
+.sp-tabela{max-height:300px;overflow-y:auto;}
+.sp-opcoes{align-items:end;margin-top:14px;}

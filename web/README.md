@@ -10,7 +10,7 @@ HTML + CSS + JavaScript puro, sem build step. Fala com o backend (pasta
 | Perguntar à IA (RAG) | `#/ia` | **não precisa** | reais — `POST /api/chat`, fontes com link para o PDF na página citada |
 | Manuais | `#/manuais` | **não precisa** | reais — busca por título, categoria ou texto do manual |
 | Busca e ficha de peça, chamados | `#/inicio`, `#/busca/…`, `#/peca/…`, `#/chamados` | sim | reais |
-| CMS → Manuais | `#/admin/manuais` | ADMIN | reais — enviar PDF (vários de uma vez), status ao vivo, trechos, editar, ativar/desativar, reprocessar, excluir |
+| CMS → Manuais | `#/admin/manuais` | ADMIN | reais — **importar do SharePoint**, enviar PDF (vários de uma vez), status ao vivo, trechos, editar, ativar/desativar, reprocessar, excluir |
 | CMS → Categorias | `#/admin/categorias` | ADMIN | reais |
 | CMS → Base de conhecimento | `#/admin/base-conhecimento` | ADMIN | reais — resumo da indexação e teste da busca |
 | CMS → Dashboard | `#/admin` | ADMIN/TÉCNICO | números dos manuais reais; o resto é demo |
