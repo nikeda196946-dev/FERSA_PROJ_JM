@@ -17,7 +17,7 @@
   <artifactId>fersa-care-backend</artifactId>
   <version>0.1.0</version>
   <name>fersa-care-backend</name>
-  <description>API REST do FERSA Care — catálogo, chamados e autenticação (Fase 3)</description>
+  <description>API REST do FERSA Care — catálogo, chamados, autenticação e manuais com RAG</description>
 
   <properties>
     <java.version>21</java.version>
@@ -61,6 +61,20 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- Manuais/RAG: extração de texto dos PDFs -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.3</version>
+      <exclusions>
+        <!-- o Spring já traz a API do commons-logging (spring-jcl) -->
+        <exclusion>
+          <groupId>commons-logging</groupId>
+          <artifactId>commons-logging</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>

@@ -9,6 +9,11 @@ spring:
       maximum-pool-size: 10
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      # Upload de manuais em PDF (área admin)
+      max-file-size: ${FERSA_UPLOAD_MAX:25MB}
+      max-request-size: ${FERSA_UPLOAD_MAX:25MB}
 
 server:
   port: ${PORT:8080}
@@ -30,3 +35,30 @@ fersa:
   cors:
     # Separado por vírgula. Em dev: a origem do Live Server do Web.
     allowed-origins: ${FERSA_CORS_ORIGINS:http://127.0.0.1:5500,http://localhost:5500}
+  gemini:
+    # Chave em https://aistudio.google.com/apikey — só no .env, nunca no Git.
+    api-key: ${GEMINI_API_KEY:}
+    base-url: https://generativelanguage.googleapis.com/v1beta
+    modelo-embedding: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+    # Precisa bater com vector(768) em database/manuais.sql
+    embedding-dimensoes: 768
+    # "gemini-flash-latest" é um alias que o Google mantém apontando para o
+    # Flash mais novo (em out/2026: gemini-3.8-flash). O gemini-2.5-flash já
+    # devolve 404 para contas novas.
+    modelo-chat: ${GEMINI_CHAT_MODEL:gemini-flash-latest}
+    # Usado quando o principal responde 503 (alta demanda), 429, 404 ou estoura o tempo.
+    # Vazio = sem reserva.
+    modelo-chat-reserva: ${GEMINI_CHAT_MODEL_RESERVA:gemini-flash-lite-latest}
+    # thinkingLevel dos modelos Gemini 3+ ("low" ou "high"). "low" deixa a
+    # resposta 2 a 3x mais rápida, o que basta para responder a partir de
+    # trechos. Vazio = não manda (necessário se trocar para um modelo 2.5).
+    nivel-raciocinio: ${GEMINI_NIVEL_RACIOCINIO:low}
+  rag:
+    # Quantos trechos vão para o prompt
+    top-k: 5
+    # Tamanho de cada chunk (em caracteres) e quanto um chunk repete do anterior
+    chunk-tamanho: 1200
+    chunk-sobreposicao: 200
+    # Similaridade mínima (0 a 1) para um trecho entrar no prompt.
+    # 0 = desligado; ajustar na semana 4 olhando os scores das 10 perguntas de teste.
+    score-minimo: ${FERSA_RAG_SCORE_MINIMO:0}

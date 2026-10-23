@@ -3,9 +3,11 @@
 Plataforma de suporte técnico e pós-vendas para mecânicos que trabalham
 com rolamentos — projeto acadêmico. Busca tradicional (Part Number,
 aplicação, veículo, modelo, categoria, texto), ficha da peça, abertura e
-atendimento de chamados já conectados ponta a ponta. Busca por IA e CMS
-de escrita ainda são demonstrativos (dados fictícios no frontend),
-aguardando o módulo de RAG e o CMS do backend.
+atendimento de chamados já conectados ponta a ponta. O sistema de manuais
+com RAG (upload de PDF → embeddings do Gemini → pgvector → `/api/chat`
+com fontes) e o CMS de manuais/categorias já existem no backend; as telas
+de IA e admin do Web ainda são demonstrativas até a semana 3 do
+cronograma.
 
 ## Estrutura do repositório
 
@@ -27,9 +29,9 @@ Web (navegador)
    │  demais chamadas: Bearer <access_token> do Supabase
    ▼
 Backend Spring Boot  ──valida o JWT via JWKS──▶  Supabase Auth
-   │
+   │        └──embeddings + resposta do chat──▶  Gemini (Google AI)
    ▼
-Supabase Postgres (+ pgvector, reservado para o RAG)
+Supabase Postgres (+ pgvector: chunks dos manuais)
 ```
 
 O backend nunca emite os próprios tokens — quem autentica é o Supabase
@@ -39,7 +41,8 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 ## Para rodar o projeto do zero
 
 1. **Banco** — crie um projeto no [supabase.com](https://supabase.com),
-   rode `database/schema.sql` e depois `database/seed.sql` no SQL Editor.
+   rode `database/schema.sql`, `database/seed.sql` e `database/manuais.sql`
+   no SQL Editor.
    Crie os usuários de teste em Authentication → Add user (ver
    `database/seed.sql`, bloco final).
 2. **Backend** — siga `backend/README.md` (`.env` a partir do
@@ -54,22 +57,26 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 | Web | HTML, CSS, JavaScript (sem framework) |
 | Backend | Java 21, Spring Boot 3, Spring Security (Resource Server), JdbcTemplate |
 | Banco | Supabase (Postgres + pgvector) |
+| IA / RAG | Gemini (`gemini-embedding-001` + `gemini-flash-latest`, com `gemini-flash-lite-latest` de reserva), PDFBox para ler os PDFs |
 | Auth | Supabase Auth (JWT assinado, validado pelo backend via JWKS) |
 | Android | planejado — consumirá a mesma API do backend |
 
 ## O que falta (nesta ordem)
 
-1. CMS de escrita no backend (hoje as telas `/admin` do Web são só
-   demonstrativas).
-2. RAG + Busca por IA reais (hoje a tela de IA responde com dados
-   fictícios no próprio frontend).
-3. Aplicativo Android, consumindo a mesma API.
+1. Ligar o Web às rotas de manuais: busca + chat com fontes na área
+   pública, e o CMS (tabela de manuais, categorias, upload) no admin
+   (semana 3 do cronograma).
+2. Importar do SharePoint (semana 3; se travar, fica só o upload manual).
+3. CMS de escrita do catálogo de peças no backend.
+4. Aplicativo Android, consumindo a mesma API.
 
 ## Segurança — resumo
 
 - Segredos (senha do banco, chaves) só em `.env` / `web/js/config.js`,
   ambos fora do Git (ver `.gitignore`).
 - Autorização por perfil feita no backend (`@PreAuthorize`), nunca só
-  escondendo botão na interface.
+  escondendo botão na interface. `/api/admin/**` só para ADMIN;
+  `/api/chat`, `/api/manuais` e `/api/categorias` são públicos e só
+  mostram manuais ativos e já processados.
 - Mecânico só vê os próprios chamados; um chamado de outra pessoa
   devolve 404 (não 403), para não revelar nem que ele existe.
