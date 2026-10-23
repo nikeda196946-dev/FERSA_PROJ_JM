@@ -134,6 +134,12 @@ public class ManualService {
         return buscar(id);
     }
 
+    /** O PDF de qualquer manual (inclusive inativo ou com erro), para o admin conferir. */
+    public ManualRepository.ArquivoPdf baixar(UUID id) {
+        return manualRepository.buscarArquivo(id)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Manual não encontrado."));
+    }
+
     // ----- área pública -----
 
     public List<ManualDTO> listarPublicos(String termo, UUID categoriaId) {

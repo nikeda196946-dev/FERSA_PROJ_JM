@@ -27,6 +27,10 @@ rota("/login", () => {
         <div class="linha-entre">
           <a class="link-simples" href="#/recuperar-senha">Esqueci minha senha</a>
         </div>
+        <div class="acesso-publico">
+          <a class="link-simples" href="#/ia">${ICONES.ia} Perguntar à IA sem entrar</a>
+          <a class="link-simples" href="#/manuais">${ICONES.manual} Consultar manuais</a>
+        </div>
       </div>
     </div>`;
   ligarLogin();
@@ -105,7 +109,7 @@ rota("/inicio", () => {
       { icone: "lubrificar", label: "Lubrificar", destino: "/busca/lubrificacao" },
       { icone: "ferramentas", label: "Ferramentas", destino: "/busca/ferramentas" },
       { icone: "problema", label: "Estou com um problema", destino: "/busca/problemas", alerta: true },
-      { icone: "manual", label: "Consultar manual", destino: "/busca/manual" },
+      { icone: "manual", label: "Consultar manual", destino: "/manuais" },
       { icone: "tecnico", label: "Falar com técnico", destino: "/chamado/novo" }
     ];
     montarConteudo(`

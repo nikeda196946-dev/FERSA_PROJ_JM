@@ -625,3 +625,31 @@ table.tabela{width:100%;border-collapse:collapse;font-size:0.9rem;}
 .erro-doc{font-size:0.78rem;color:var(--danger);margin-top:3px;}
 .teste-rec{display:flex;gap:8px;flex-wrap:wrap;}
 .teste-rec input{flex:1 1 260px;min-height:44px;padding:0 12px;border:1px solid var(--border-strong);font-size:0.92rem;}
+
+/* ---------- Área pública, chat real e CMS de manuais (semana 3) ---------- */
+.acesso-publico{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:0.88rem;}
+.acesso-publico a{display:inline-flex;align-items:center;gap:6px;}
+.acesso-publico .ico{width:16px;height:16px;}
+.ia-resposta p + p{margin-top:8px;}
+.ia-modelo,.ia-resposta p.ia-modelo{margin-top:12px;font-size:0.76rem;color:var(--text-muted);}
+.texto-suave{color:var(--text-muted);font-size:0.82rem;}
+.selo-demo{margin-left:auto;font-family:var(--font-body);font-size:0.66rem;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn);padding:0 6px;}
+h3 .selo-demo{margin-left:8px;vertical-align:middle;}
+.titulo-dash{font-size:1.05rem;margin:18px 0 10px;display:flex;align-items:center;}
+.stat.stat-erro{border-color:#E7B5AC;background:var(--danger-bg);}
+.stat.stat-erro .num{color:var(--danger);}
+.spinner-mini{width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:girar 0.8s linear infinite;flex:none;}
+.barra-ferramentas select{min-height:44px;border:1px solid var(--border-strong);background:var(--bg);padding:0 10px;font-size:0.9rem;}
+.modal-rolavel{max-height:60vh;overflow-y:auto;padding-right:4px;}
+.lista-upload{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.lista-upload:empty{display:none;}
+.lista-upload li{display:flex;justify-content:space-between;gap:12px;align-items:baseline;border:1px solid var(--border);background:var(--surface);padding:8px 10px;font-size:0.86rem;}
+.lista-upload li span{overflow-wrap:anywhere;}
+.lista-upload li small{color:var(--text-muted);text-align:right;}
+.lista-upload li.ok{border-color:#A9D3BA;background:var(--success-bg);}
+.lista-upload li.ok small{color:var(--success);}
+.lista-upload li.erro{border-color:#E7B5AC;background:var(--danger-bg);}
+.lista-upload li.erro small{color:var(--danger);}
+.stats.stats-4{grid-template-columns:repeat(4,1fr);}
+@media (max-width:720px){.stats.stats-4{grid-template-columns:repeat(2,1fr);}}
+.campo > small.texto-suave{display:block;margin-top:6px;}

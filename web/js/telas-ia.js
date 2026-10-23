@@ -1,5 +1,5 @@
 /* =====================================================================
-   FERSA Care — Busca por IA (mock do RAG) e Chamados
+   FERSA Care — Busca por IA (RAG) e Chamados
    ===================================================================== */
 
 const EXEMPLOS_IA = [
@@ -9,34 +9,36 @@ const EXEMPLOS_IA = [
   "Como devo fazer a lubrificação?"
 ];
 
-/* ---------------- Pergunte ao FERSA Care ---------------- */
+/* ---------------- Pergunte ao FERSA Care (RAG real: POST /api/chat) ----------------
+   Pública: abre sem login. Logado, aparece também o seletor de peça (a lista
+   de peças exige token) e o atalho para abrir chamado. */
 rota("/ia", () => {
   const query = obterQuery();
   const pecaIdInicial = query.get("peca") || "";
-  const perguntaInicial = query.get("pergunta") || "";
+  const perguntaInicial = query.get("pergunta") || "";   // preenche e já envia
+  const rascunho = query.get("rascunho") || "";          // só preenche (ex.: atalho de um manual)
+  const sessao = Sessao.atual();
+  montarConteudo(estadoCarregando());
 
-  api.listarTodasPecas().then(pecas => {
+  const carregarPecas = sessao ? api.listarTodasPecas().catch(() => []) : Promise.resolve([]);
+  carregarPecas.then(pecas => {
     montarConteudo(`
       <div class="conteudo">
-        <a class="voltar" href="#/inicio">${ICONES.setaEsq} Voltar ao início</a>
+        ${sessao ? `<a class="voltar" href="#/inicio">${ICONES.setaEsq} Voltar ao início</a>` : ""}
         <h1>Pergunte ao FERSA Care</h1>
-        <p style="margin-top:6px;">Descreva sua dúvida ou problema, sem precisar de termos técnicos.</p>
+        <p style="margin-top:6px;">Descreva sua dúvida ou problema com suas palavras. A resposta vem dos manuais cadastrados, com a página de onde saiu.</p>
 
-        <div class="aviso-prototipo">
-          ${ICONES.info}
-          <span>Protótipo: as respostas abaixo são simuladas (Mock API). Futuramente esta busca será integrada a um RAG, que consulta a base de conhecimento real cadastrada no CMS.</span>
-        </div>
-
+        ${pecas.length ? `
         <div class="contexto-peca">
           <label for="select-peca" style="color:var(--text-muted);">Sobre qual peça é a dúvida?</label>
           <select id="select-peca">
-            <option value="">Não sei / buscar em todas</option>
+            <option value="">Não sei / buscar em todos os manuais</option>
             ${pecas.map(p => `<option value="${p.id}" ${String(p.id) === pecaIdInicial ? "selected" : ""}>${esc(p.partNumber)} — ${esc(p.nome)}</option>`).join("")}
           </select>
-        </div>
+        </div>` : ""}
 
         <form id="form-ia" class="ia-form">
-          <textarea id="campo-pergunta" placeholder="Ex: Meu rolamento está aquecendo depois da montagem. O que devo verificar?">${esc(perguntaInicial)}</textarea>
+          <textarea id="campo-pergunta" maxlength="1000" placeholder="Ex: Meu rolamento está aquecendo depois da montagem. O que devo verificar?">${esc(perguntaInicial || rascunho)}</textarea>
           <div class="form-acoes">
             <button class="btn-principal" type="submit" id="btn-perguntar">${ICONES.ia} Perguntar</button>
           </div>
@@ -48,25 +50,29 @@ rota("/ia", () => {
         <details class="como-funciona">
           <summary>Como funciona essa busca?</summary>
           <div class="corpo">
-            <p>A resposta é gerada a partir do conteúdo cadastrado no sistema, nunca de conhecimento genérico da IA:</p>
+            <p>A resposta é montada só com trechos dos manuais cadastrados — nunca com conhecimento genérico da IA:</p>
             <div class="fluxo-rag">
-              <span>Sua pergunta</span><i>→</i><span>Busca semântica</span><i>→</i><span>Base de conhecimento</span><i>→</i><span>IA</span><i>→</i><span>Resposta com fonte</span>
+              <span>Sua pergunta</span><i>→</i><span>Vira um vetor (embedding)</span><i>→</i><span>5 trechos mais parecidos dos manuais</span><i>→</i><span>Gemini</span><i>→</i><span>Resposta com a página da fonte</span>
             </div>
-            <p>Se não houver conteúdo suficiente, o sistema informa isso claramente e sugere falar com um técnico — a IA não inventa uma resposta técnica.</p>
+            <p>Se os manuais não cobrem a pergunta, o sistema diz isso claramente e sugere falar com um técnico — a IA não inventa torque, medida nem procedimento.</p>
           </div>
         </details>
 
         <div id="ia-thread"></div>
       </div>`);
 
-    ligarIA();
+    ligarIA(pecas);
     if(perguntaInicial){
       document.getElementById("form-ia").requestSubmit();
+    }else if(rascunho){
+      const campo = document.getElementById("campo-pergunta");
+      campo.focus();
+      campo.setSelectionRange(campo.value.length, campo.value.length);
     }
   });
-}, ["MECANICO"]);
+}, null);
 
-function ligarIA(){
+function ligarIA(pecas){
   const form = document.getElementById("form-ia");
   const campo = document.getElementById("campo-pergunta");
   const selectPeca = document.getElementById("select-peca");
@@ -96,10 +102,9 @@ function ligarIA(){
     }
 
     contador += 1;
-    const idBloco = "ia-res-" + contador;
     const bloco = document.createElement("div");
     bloco.className = "ia-resultado aberto";
-    bloco.id = idBloco;
+    bloco.id = "ia-res-" + contador;
     bloco.innerHTML = `
       <div class="ia-bloco ia-pergunta">
         <div class="ia-rotulo">Sua pergunta</div>
@@ -107,50 +112,60 @@ function ligarIA(){
       </div>
       <div class="ia-bloco">
         <div class="thinking">
-          <div>${ICONES.busca} Buscando na base de conhecimento…</div>
-          <div>${ICONES.documento} Recuperando trechos relevantes…</div>
-          <div>${ICONES.ia} Gerando resposta…</div>
+          <div>${ICONES.busca} Buscando nos manuais…</div>
+          <div>${ICONES.documento} Recuperando os trechos mais parecidos…</div>
+          <div>${ICONES.ia} Gerando a resposta…</div>
         </div>
       </div>`;
     thread.insertBefore(bloco, thread.firstChild);
     campo.value = "";
-    document.getElementById("btn-perguntar").disabled = true;
+    const btn = document.getElementById("btn-perguntar");
+    btn.disabled = true;
 
-    api.perguntarIA(pergunta, selectPeca.value || null).then(res => {
-      document.getElementById("btn-perguntar").disabled = false;
+    const peca = selectPeca && selectPeca.value ? pecas.find(p => String(p.id) === selectPeca.value) : null;
+    api.perguntarIA(pergunta, peca).then(res => {
+      btn.disabled = false;
       renderRespostaIA(bloco, res);
     }).catch(err => {
-      document.getElementById("btn-perguntar").disabled = false;
-      bloco.querySelector(".ia-bloco:last-child").innerHTML = estadoErro({ titulo: "Não foi possível consultar a IA", texto: err.message });
+      btn.disabled = false;
+      const texto = err.status === 503
+        ? "A IA está indisponível agora (o serviço do Google pode estar sobrecarregado). Tente de novo em instantes."
+        : err.message;
+      bloco.querySelector(".ia-bloco:last-child").innerHTML = estadoErro({ titulo: "Não foi possível consultar a IA", texto });
     });
   });
 }
 
+/* Texto da IA: escapa primeiro e só depois aplica **negrito** e quebras de linha. */
+function formatarRespostaIA(texto){
+  return esc(texto || "")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .split(/\n{2,}/).map(par => `<p>${par.replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+function linkFalarComTecnico(res, classe){
+  if(!Sessao.atual()){
+    return `<a class="${classe}" href="#/login">${ICONES.chamado} Entrar para abrir um chamado</a>`;
+  }
+  return `<a class="${classe}" href="#/chamado/novo?consulta=${encodeURIComponent(res.id)}&peca=${res.pecaRelacionadaId || ""}&assunto=${encodeURIComponent(res.pergunta)}">${ICONES.chamado} Falar com técnico</a>`;
+}
+
 function renderRespostaIA(bloco, res){
   const blocoResposta = bloco.querySelector(".ia-bloco:last-child");
+  const rodape = res.modelo ? `<p class="ia-modelo">Gerado por ${esc(res.modelo)} a partir dos manuais cadastrados.</p>` : "";
 
   if(!res.encontrouConteudo){
     blocoResposta.innerHTML = `
-      <div class="ia-rotulo">Resposta <span class="selo-simulada">Simulada</span></div>
-      <div class="ia-resposta sem-info">
-        <p>${esc(res.resposta)}</p>
-        ${res.sugestoesPeca && res.sugestoesPeca.length ? `
-          <h4>Isso é sobre uma destas peças?</h4>
-          <div class="sugestoes-peca">
-            ${res.sugestoesPeca.map(p => `<button data-abrir-peca="${p.id}"><span class="pn">${esc(p.partNumber)}</span> ${esc(p.nome)}</button>`).join("")}
-          </div>` : ""}
-      </div>
-      <div class="ia-acoes">
-        <a class="btn-principal" href="#/chamado/novo?consulta=${encodeURIComponent(res.id)}&assunto=${encodeURIComponent(res.pergunta)}">${ICONES.chamado} Falar com técnico</a>
-      </div>`;
-    blocoResposta.querySelectorAll("[data-abrir-peca]").forEach(b => b.addEventListener("click", () => irPara("/peca/" + b.getAttribute("data-abrir-peca"))));
+      <div class="ia-rotulo">Resposta</div>
+      <div class="ia-resposta sem-info">${formatarRespostaIA(res.resposta)}</div>
+      <div class="ia-acoes">${linkFalarComTecnico(res, "btn-principal")}</div>`;
     return;
   }
 
   blocoResposta.innerHTML = `
-    <div class="ia-rotulo">Resposta <span class="selo-simulada">Simulada</span></div>
+    <div class="ia-rotulo">Resposta</div>
     <div class="ia-resposta">
-      <p>${esc(res.resposta)}</p>
+      ${formatarRespostaIA(res.resposta)}
       <h4>Fontes consultadas</h4>
       <div class="lista-fontes">
         ${res.fontes.map(f => `
@@ -161,12 +176,11 @@ function renderRespostaIA(bloco, res){
               <blockquote>${esc(f.trecho)}</blockquote>
             </div>
             <div class="grupo-botoes">
-              ${f.tipo === "manual" ? `<a class="btn-secundario btn-pequeno" href="#/peca/${f.pecaId}/manual">Ver fonte</a>` : ""}
-              ${f.tipo === "problema" && f.pecaId ? `<a class="btn-secundario btn-pequeno" href="#/peca/${f.pecaId}/problemas">Ver procedimento</a>` : ""}
-              ${f.tipo === "ferramenta" ? `<a class="btn-secundario btn-pequeno" href="#/busca/ferramentas">Ver procedimento</a>` : ""}
+              <a class="btn-secundario btn-pequeno" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener">${ICONES.documento} ${f.pagina ? `Abrir PDF na página ${f.pagina}` : "Abrir PDF"}</a>
             </div>
           </div>`).join("")}
       </div>
+      ${rodape}
     </div>
     <div class="ia-acoes">
       <div class="ia-feedback" id="feedback-${bloco.id}">
@@ -182,10 +196,9 @@ function renderRespostaIA(bloco, res){
     if(!btn) return;
     if(btn.getAttribute("data-resolveu") === "sim"){
       feedback.innerHTML = `${ICONES.check} <span>Ótimo! Obrigado pelo retorno.</span>`;
-      toast("Obrigado pelo retorno — isso ajuda a melhorar a base de conhecimento.", "ok");
+      toast("Obrigado pelo retorno.", "ok");
     }else{
-      feedback.innerHTML = `<span>Sem problema. Você pode abrir um chamado com esta conversa anexada.</span>
-        <a class="btn-principal btn-pequeno" href="#/chamado/novo?consulta=${encodeURIComponent(res.id)}&peca=${res.pecaRelacionadaId || ""}&assunto=${encodeURIComponent(res.pergunta)}">${ICONES.chamado} Falar com técnico</a>`;
+      feedback.innerHTML = `<span>Sem problema. Um técnico pode ajudar com o seu caso.</span> ${linkFalarComTecnico(res, "btn-principal btn-pequeno")}`;
     }
   });
 }
