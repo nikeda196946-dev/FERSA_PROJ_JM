@@ -39,8 +39,11 @@ pacote) antes de eu considerar a migração concluída. Ainda assim, rode
 
 ## Pré-requisitos
 
-- Java 21
-- Maven (ou o wrapper `./mvnw`, se vierem a adicionar um)
+- Java 21 (https://adoptium.net) — `java -version` precisa mostrar 21
+- **Não precisa instalar o Maven**: o projeto traz o Maven Wrapper
+  (`mvnw` / `mvnw.cmd`), que baixa o Maven 3.9.9 sozinho na primeira
+  execução (em `~/.m2/wrapper`). Se a rede da empresa bloquear o download,
+  instale o Maven manualmente e troque `mvnw` por `mvn`.
 - Projeto Supabase já criado, com `schema.sql`, `seed.sql` e `manuais.sql` rodados
 - Uma chave do Gemini (https://aistudio.google.com/apikey) para a parte de manuais/RAG
 
@@ -73,14 +76,18 @@ cp .env.example .env
 ## Como rodar
 
 ```bash
-mvn clean compile   # confirma que compila no seu ambiente
 ./run.sh            # Linux/macOS — carrega .env e sobe em http://localhost:8080
-run.cmd              # Windows — mesma coisa
+.\run.cmd           # Windows (PowerShell) — mesma coisa; no cmd basta run.cmd
 ```
 
-`run.sh`/`run.cmd` só leem o `.env` e chamam `mvn spring-boot:run` — se
-preferir, exporte as variáveis você mesmo e rode `mvn spring-boot:run`
-direto, dá no mesmo.
+No PowerShell o `.\` é obrigatório: ele não executa scripts da pasta atual
+sem isso. A primeira execução demora alguns minutos (baixa o Maven e as
+dependências); as seguintes sobem em segundos.
+
+`run.sh`/`run.cmd` só leem o `.env` e chamam `mvnw spring-boot:run` — se
+preferir, exporte as variáveis você mesmo e rode `./mvnw spring-boot:run`
+(`.\mvnw.cmd spring-boot:run` no Windows) direto, dá no mesmo. Para rodar
+os testes: `./mvnw test`.
 
 Teste rápido (não exige token):
 
@@ -296,7 +303,7 @@ curl -X POST http://localhost:8080/api/chat -H "Content-Type: application/json" 
 
 ### Testado como
 
-- `mvn test`: testes de unidade do Chunker, PdfExtractor (PDF gerado no
+- `./mvnw test`: testes de unidade do Chunker, PdfExtractor (PDF gerado no
   teste), GeminiClient (JSON enviado/recebido, lotes de 100, erros) e
   ChatService (prompt, "não encontrei", fontes citadas).
 - Ponta a ponta contra Postgres 16 + pgvector local com `schema.sql`,
