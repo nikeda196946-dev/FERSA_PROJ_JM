@@ -61,8 +61,9 @@ cp .env.example .env
 | `SUPABASE_DB_URL` | Project Settings → Database → Connection string (JDBC) | `jdbc:postgresql://db.xxxxx.supabase.co:5432/postgres` |
 | `SUPABASE_DB_USER` | idem | `postgres` |
 | `SUPABASE_DB_PASSWORD` | a senha que você definiu ao criar o projeto | — |
-| `SUPABASE_JWKS_URL` | é sempre a mesma URL, só troca o `<project-ref>` | `https://<project-ref>.supabase.co/auth/v1/jwks` |
+| `SUPABASE_JWKS_URL` | endpoint público de chaves, só troca o `<project-ref>` | `https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json` |
 | `SUPABASE_JWT_ISSUER` | idem | `https://<project-ref>.supabase.co/auth/v1` |
+| `SUPABASE_JWT_SECRET` | segredo legado de assinatura JWT, só se o projeto usar HS256; deixe vazio se usar chaves assimétricas/JWKS | **não compartilhe nem coloque no frontend** |
 | `FERSA_CORS_ORIGINS` | origem do Web em dev | `http://127.0.0.1:5500,http://localhost:5500` |
 | `PORT` | opcional — porta da API | `8080` |
 | `GEMINI_API_KEY` | não é do Supabase: https://aistudio.google.com/apikey | — |

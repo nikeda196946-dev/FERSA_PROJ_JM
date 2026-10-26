@@ -29,15 +29,19 @@ refresh token; se não der, volta para o login.
 cp js/config.example.js js/config.js
 ```
 
-Edite `js/config.js`:
+Edite `js/config.js` apenas se a API estiver em outro endereço. A URL do
+Supabase e a chave pública são carregadas da API, que lê `SUPABASE_URL` e
+`SUPABASE_ANON_KEY` no `.env` do backend:
 
 ```js
 const FERSA_CONFIG = {
-  apiUrl: "http://localhost:8080",        // onde o backend Spring está rodando
-  supabaseUrl: "https://SEU-PROJETO.supabase.co",
-  supabaseAnonKey: "a chave anon/public do projeto" // NUNCA a service_role
+  apiUrl: "http://localhost:8080" // onde o backend Spring está rodando
 };
 ```
+
+Preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `backend/.env`. A chave
+anon/publishable é pública e pode ser entregue ao navegador; nunca use
+`service_role` ou uma chave `secret`.
 
 `js/config.js` é ignorado pelo Git (ver `.gitignore` na raiz) — cada
 desenvolvedor mantém o seu local, apontando para o próprio ambiente.

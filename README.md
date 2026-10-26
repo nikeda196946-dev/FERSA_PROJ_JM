@@ -43,14 +43,22 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 ## Para rodar o projeto do zero
 
 1. **Banco** — crie um projeto no [supabase.com](https://supabase.com),
-   rode `database/schema.sql`, `database/seed.sql`, `database/manuais.sql`
-   e `database/cadastro.sql` no SQL Editor.
-   Crie os usuários de teste em Authentication → Add user (ver
-   `database/seed.sql`, bloco final).
-2. **Backend** — siga `backend/README.md` (`.env` a partir do
-   `.env.example`, depois `./run.sh` ou `run.cmd`).
-3. **Web** — siga `web/README.md` (`config.js` a partir do
-   `config.example.js`, depois `npm run dev` ou Live Server).
+//<<<<<<< claude/amazing-newton-nwost0
+ //  rode `database/schema.sql`, `database/seed.sql`, `database/manuais.sql`
+//   e `database/cadastro.sql` no SQL Editor.
+ ///  Crie os usuários de teste em Authentication → Add user (ver
+//   `database/seed.sql`, bloco final).
+//=======
+//   rode `database/schema.sql`, `database/seed.sql` e `database/manuais.sql`
+ //  no SQL Editor.
+  // Crie os usuários de teste em Authentication → Users → Add user e
+  // vincule-os aos perfis rodando `database/test-users.sql` (detalhes em
+ //  `database/README.md`).
+//>>>>>>> main
+ //  `.env.example`, depois `./run.sh` ou `run.cmd`).
+//2. **Backend** — siga `backend/README.md` (`.env` a partir do
+///3. **Web** — siga `web/README.md` (`config.js` a partir do
+ ///  `config.example.js`, depois `npm run dev` ou Live Server).
 
 ## Stack
 
