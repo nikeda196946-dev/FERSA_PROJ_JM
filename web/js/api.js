@@ -191,9 +191,21 @@ const api = {
    as seções do CMS de peças/ferramentas/problemas/usuários, marcadas como
    "demo" nas telas. */
 function apiUrl(path){ return FERSA_CONFIG.apiUrl.replace(/\/$/, "") + path; }
-function validarConfigSupabase(){
+let configSupabasePromise;
+async function validarConfigSupabase(){
+  if(!configSupabasePromise){
+    configSupabasePromise = fetch(apiUrl("/api/v1/config"))
+      .then(async r => {
+        if(!r.ok) throw new Error("Não foi possível carregar a configuração do Supabase.");
+        const config = await r.json();
+        FERSA_CONFIG.supabaseUrl = config.supabaseUrl || "";
+        FERSA_CONFIG.supabaseAnonKey = config.supabaseAnonKey || "";
+      })
+      .catch(e => { configSupabasePromise = null; throw e; });
+  }
+  await configSupabasePromise;
   if(!FERSA_CONFIG.supabaseUrl || !FERSA_CONFIG.supabaseAnonKey){
-    throw new Error("Configure supabaseUrl e supabaseAnonKey em js/config.js para habilitar o login.");
+    throw new Error("Configure SUPABASE_URL e SUPABASE_ANON_KEY no .env do backend para habilitar o login.");
   }
 }
 /* O access_token do Supabase vale 1 hora. Num 401, renovamos com o
@@ -301,7 +313,7 @@ function normalizarChamado(c){
 }
 Object.assign(api, {
   async login(email, senha){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const base = FERSA_CONFIG.supabaseUrl.replace(/\/$/, "");
     const auth = await fetch(`${base}/auth/v1/token?grant_type=password`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
@@ -313,7 +325,7 @@ Object.assign(api, {
     return { id: perfil.id, nome: perfil.nome, perfil: perfil.perfil, oficina: "", accessToken: credenciais.access_token, refreshToken: credenciais.refresh_token };
   },
   async recuperarSenha(email){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/recover`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey }, body: JSON.stringify({ email })
     });
