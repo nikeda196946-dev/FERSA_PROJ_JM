@@ -26,6 +26,7 @@ rota("/login", () => {
         </form>
         <div class="linha-entre">
           <a class="link-simples" href="#/recuperar-senha">Esqueci minha senha</a>
+          <a class="link-simples" href="#/cadastro"><strong>Criar conta</strong></a>
         </div>
         <div class="acesso-publico">
           <a class="link-simples" href="#/ia">${ICONES.ia} Perguntar à IA sem entrar</a>
@@ -61,6 +62,89 @@ function ligarLogin(){
     }).catch(err => {
       btn.disabled = false; btn.textContent = "Entrar";
       document.getElementById("campo-senha").classList.add("invalido");
+      toast(err.message, "erro");
+    });
+  });
+}
+
+/* ---------------- Cadastro (pública) ----------------
+   Conta nova no Supabase Auth; o perfil MECANICO é criado pelo trigger de
+   database/cadastro.sql. Técnico/Admin só por promoção no CMS (Usuários). */
+rota("/cadastro", () => {
+  montarConteudo(null, { semTopbar: true });
+  document.getElementById("app").innerHTML = `
+    <div class="tela-login">
+      <div class="painel-login">
+        <a class="voltar" href="#/login">${ICONES.setaEsq} Voltar ao login</a>
+        <div class="marca-login" style="font-size:1.3rem;">Criar conta</div>
+        <p class="slogan" id="texto-cadastro">Para mecânicos e oficinas. Com a conta você abre chamados e acompanha as soluções.</p>
+        <form id="form-cadastro" novalidate>
+          <div class="campo" id="campo-cad-nome">
+            <label for="cad-nome">Nome</label>
+            <input id="cad-nome" type="text" placeholder="Seu nome" autocomplete="name" maxlength="120" required>
+          </div>
+          <div class="campo" id="campo-cad-email">
+            <label for="cad-email">E-mail</label>
+            <input id="cad-email" type="email" placeholder="seu.email@oficina.com" autocomplete="email" required>
+          </div>
+          <div class="campo" id="campo-cad-senha">
+            <label for="cad-senha">Senha <span class="opcional">(mínimo 6 caracteres)</span></label>
+            <div class="senha-wrap">
+              <input id="cad-senha" type="password" autocomplete="new-password" required>
+              <button type="button" id="btn-ver-senha-cad">Mostrar</button>
+            </div>
+          </div>
+          <div class="campo" id="campo-cad-senha2">
+            <label for="cad-senha2">Confirmar senha</label>
+            <input id="cad-senha2" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="btn-principal btn-bloco" type="submit" id="btn-cadastrar">Criar conta</button>
+        </form>
+        <p class="nota-login">Já tem conta? <a class="link-simples" href="#/login">Entrar</a></p>
+      </div>
+    </div>`;
+  ligarCadastro();
+}, null);
+
+function ligarCadastro(){
+  const form = document.getElementById("form-cadastro");
+  const senha = document.getElementById("cad-senha");
+  const senha2 = document.getElementById("cad-senha2");
+  document.getElementById("btn-ver-senha-cad").addEventListener("click", (e) => {
+    const mostrar = senha.type === "password";
+    senha.type = senha2.type = mostrar ? "text" : "password";
+    e.target.textContent = mostrar ? "Ocultar" : "Mostrar";
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nome = document.getElementById("cad-nome").value.trim();
+    const email = document.getElementById("cad-email").value.trim();
+    const erros = [
+      ["campo-cad-nome", !nome, "Informe seu nome."],
+      ["campo-cad-email", !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), "Informe um e-mail válido."],
+      ["campo-cad-senha", senha.value.length < 6, "A senha precisa ter pelo menos 6 caracteres."],
+      ["campo-cad-senha2", senha.value !== senha2.value, "As senhas não são iguais."]
+    ];
+    erros.forEach(([id, invalido]) => document.getElementById(id).classList.toggle("invalido", invalido));
+    const primeiro = erros.find(([, invalido]) => invalido);
+    if(primeiro){ toast(primeiro[2], "erro"); return; }
+
+    const btn = document.getElementById("btn-cadastrar");
+    btn.disabled = true; btn.textContent = "Criando conta…";
+    api.cadastrar(nome, email, senha.value).then(r => {
+      if(r.precisaConfirmar){
+        form.remove();
+        const texto = document.getElementById("texto-cadastro");
+        texto.innerHTML = `${ICONES.check} Conta criada! Enviamos um e-mail de confirmação para <strong>${esc(email)}</strong>. Depois de confirmar, entre com seu e-mail e senha.`;
+        texto.style.color = "var(--success)";
+        return;
+      }
+      Sessao.entrar(r.usuario);
+      toast(`Conta criada. Bem-vindo, ${r.usuario.nome.split(" ")[0]}!`, "ok");
+      irPara("/inicio");
+    }).catch(err => {
+      btn.disabled = false; btn.textContent = "Criar conta";
       toast(err.message, "erro");
     });
   });

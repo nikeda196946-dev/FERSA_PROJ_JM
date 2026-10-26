@@ -21,7 +21,7 @@ const ROTAS = []; // { padrao: RegExp, chaves: [...], perfis: [...] ou null, ren
 
 // Abrem sem login: a área pública do sistema de manuais (o backend também
 // libera /api/chat, /api/manuais e /api/categorias sem token).
-const ROTAS_PUBLICAS = ["/login", "/recuperar-senha", "/ia", "/manuais"];
+const ROTAS_PUBLICAS = ["/login", "/cadastro", "/recuperar-senha", "/ia", "/manuais"];
 
 function rota(padraoTexto, render, perfis){
   const chaves = [];
@@ -46,7 +46,7 @@ function renderRota(){
     window.location.hash = "/login";
     return;
   }
-  if(sessao && semQuery === "/login"){
+  if(sessao && (semQuery === "/login" || semQuery === "/cadastro")){
     window.location.hash = sessao.perfil === "MECANICO" ? "/inicio" : "/admin";
     return;
   }
@@ -148,7 +148,7 @@ function navInferior(){
   return `<nav class="nav-inferior">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${i.ico}${esc(i.label)}</a>`).join("")}</nav>`;
 }
 function rotuloPerfil(p){
-  return { MECANICO: "Mecânico", TECNICO: "Técnico", ADMIN: "Administrador" }[p] || p;
+  return { MECANICO: "Mecânico", TECNICO: "Técnico", ADMIN: "Administrador", CLIENTE: "Cliente" }[p] || p;
 }
 function ligarTopbar(){
   const btn = document.querySelector('[data-acao="sair"]');

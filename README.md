@@ -43,8 +43,8 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 ## Para rodar o projeto do zero
 
 1. **Banco** — crie um projeto no [supabase.com](https://supabase.com),
-   rode `database/schema.sql`, `database/seed.sql` e `database/manuais.sql`
-   no SQL Editor.
+   rode `database/schema.sql`, `database/seed.sql`, `database/manuais.sql`
+   e `database/cadastro.sql` no SQL Editor.
    Crie os usuários de teste em Authentication → Add user (ver
    `database/seed.sql`, bloco final).
 2. **Backend** — siga `backend/README.md` (`.env` a partir do

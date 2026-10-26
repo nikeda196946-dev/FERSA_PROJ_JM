@@ -179,10 +179,7 @@ const api = {
         { pergunta: "Posso usar graxa de cálcio no lugar da EP2?", quando: "19/09/2026" }
       ]
     });
-  },
-
-  /* ---------------- CMS: Usuários ---------------- */
-  cmsListarUsuarios(){ return atraso(USUARIOS.map(({ senha, ...u }) => u)); }
+  }
 };
 
 /* ---------------- Integração REST ----------------
@@ -246,6 +243,27 @@ async function lerResposta(resposta){
   }
   return dados;
 }
+/* Depois do login/cadastro no Supabase: pergunta ao backend quem é a pessoa (nome e perfil). */
+async function sessaoDoBackend(accessToken, refreshToken){
+  try{
+    const perfil = await requisicaoBackend("/api/v1/auth/me", { headers: { Authorization: `Bearer ${accessToken}` } });
+    return { id: perfil.id, nome: perfil.nome, perfil: perfil.perfil, oficina: "", accessToken, refreshToken };
+  }catch(e){
+    if(e.status === 404) throw new Error("Sua conta existe, mas o cadastro no FERSA Care não foi concluído. Fale com um administrador.");
+    throw e;
+  }
+}
+function traduzirErroCadastro(d){
+  const msg = String(d.msg || d.message || d.error_description || d.error || "");
+  const codigo = String(d.error_code || d.code || "");
+  if(/already registered|already exists|user_already_exists/i.test(msg + codigo)) return "Este e-mail já tem cadastro. Entre com ele ou use \"Esqueci minha senha\".";
+  if(/password/i.test(msg) && /(at least|6|weak|short)/i.test(msg)) return "Senha fraca: use pelo menos 6 caracteres.";
+  if(/email/i.test(msg) && /(invalid|valid)/i.test(msg)) return "E-mail inválido.";
+  if(/signups? (not allowed|disabled)/i.test(msg)) return "O cadastro está desativado no Supabase (Authentication → Sign In / Providers).";
+  if(/rate limit|too many/i.test(msg)) return "Muitas tentativas seguidas. Espere um pouco e tente de novo.";
+  return msg || "Não foi possível criar a conta.";
+}
+
 async function requisicaoBackend(path, opcoes = {}){
   const r = await chamarBackend(path, opcoes, () => ({ "Content-Type": "application/json", ...(opcoes.headers || {}) }));
   return lerResposta(r);
@@ -309,8 +327,22 @@ Object.assign(api, {
     });
     const credenciais = await auth.json().catch(() => ({}));
     if(!auth.ok) throw new Error(credenciais.msg || credenciais.message || credenciais.error_description || "Não foi possível entrar. Confira e-mail e senha.");
-    const perfil = await requisicaoBackend("/api/v1/auth/me", { headers: { Authorization: `Bearer ${credenciais.access_token}` } });
-    return { id: perfil.id, nome: perfil.nome, perfil: perfil.perfil, oficina: "", accessToken: credenciais.access_token, refreshToken: credenciais.refresh_token };
+    return sessaoDoBackend(credenciais.access_token, credenciais.refresh_token);
+  },
+  /* Cadastro pelo Supabase Auth. O profile (sempre MECANICO) é criado pelo
+     trigger de database/cadastro.sql. Com a confirmação de e-mail ligada no
+     Supabase, a resposta não traz sessão: a pessoa confirma e depois entra. */
+  async cadastrar(nome, email, senha){
+    validarConfigSupabase();
+    const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/signup`, {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
+      body: JSON.stringify({ email: (email || "").trim(), password: senha, data: { nome: (nome || "").trim() } })
+    });
+    const dados = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(traduzirErroCadastro(dados));
+    const token = dados.access_token || dados.session?.access_token;
+    if(!token) return { precisaConfirmar: true };
+    return { usuario: await sessaoDoBackend(token, dados.refresh_token || dados.session?.refresh_token) };
   },
   async recuperarSenha(email){
     validarConfigSupabase();
@@ -413,6 +445,17 @@ Object.assign(api, {
   async cmsSharePointImportar(itemIds, categoriaId, categoriaPelaPasta){
     return requisicaoBackend("/api/admin/sharepoint/importar", { method: "POST",
       body: JSON.stringify({ itemIds: itemIds || null, categoriaId: categoriaId || null, categoriaPelaPasta: !!categoriaPelaPasta }) });
+  },
+
+  /* ---------------- CMS: usuários (só ADMIN) ---------------- */
+  async cmsListarUsuarios(){ return requisicaoBackend("/api/admin/usuarios"); },
+  async cmsAlterarPerfilUsuario(id, perfil){
+    return requisicaoBackend(`/api/admin/usuarios/${encodeURIComponent(id)}/perfil`, { method: "PATCH", body: JSON.stringify({ perfil }) });
+  },
+
+  /* ---------------- CMS: Testar IA — chat livre, sem manuais (só ADMIN) ---------------- */
+  async cmsPerguntarLivre(pergunta){
+    return requisicaoBackend("/api/admin/ia/livre", { method: "POST", body: JSON.stringify({ pergunta }) });
   },
 
   /* ---------------- CMS: categorias (só ADMIN) ---------------- */

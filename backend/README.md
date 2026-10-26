@@ -182,6 +182,9 @@ em `ChamadoService.buscarDetalhe`).
 | GET | `/api/admin/sharepoint/status` | ADMIN — se está configurado, site, pasta, última sincronização |
 | GET | `/api/admin/sharepoint/arquivos` | ADMIN — PDFs da pasta com a situação (NOVO, IMPORTADO, ALTERADO, GRANDE_DEMAIS) |
 | POST | `/api/admin/sharepoint/importar` (`itemIds?`, `categoriaId?`, `categoriaPelaPasta?`) | ADMIN — baixa e importa (sem `itemIds` = todos os novos/alterados) |
+| POST | `/api/admin/ia/livre` (`pergunta`) | ADMIN — Gemini sem manuais (tela "Testar IA") |
+| GET | `/api/admin/usuarios` | ADMIN — contas do Supabase Auth com o perfil |
+| PATCH | `/api/admin/usuarios/{id}/perfil` (`perfil`) | ADMIN — o admin não pode tirar o próprio ADMIN |
 | GET · POST | `/api/admin/categorias` | ADMIN |
 | GET · PUT · DELETE | `/api/admin/categorias/{id}` (`nome`, `descricao?`, `ativo?`) | ADMIN |
 

@@ -15,6 +15,14 @@ No SQL Editor do seu projeto Supabase, nesta ordem:
    `manual` (com `status` processando/pronto/erro e `ativo`) e
    `manual_chunk` (texto + `embedding vector(768)` com índice HNSW), RLS
    ligado. Pode ser rodado de novo sem erro.
+4. `cadastro.sql` — trigger que cria a linha em `profiles` (sempre como
+   MECANICO) para quem se cadastra pela tela "Criar conta". Sem ele, a
+   conta é criada no Supabase Auth mas não consegue entrar no FERSA Care.
+   Pode ser rodado de novo sem erro.
+
+> Para testar o cadastro sem precisar confirmar e-mail: Supabase →
+> Authentication → Sign In / Providers → Email → desligue "Confirm email".
+> Com a confirmação ligada, a tela avisa que o e-mail foi enviado.
 
 O final do `seed.sql` tem um bloco comentado para ligar os usuários de
 teste (mecânico/técnico/admin) depois de criá-los em

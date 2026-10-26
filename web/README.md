@@ -7,14 +7,17 @@ HTML + CSS + JavaScript puro, sem build step. Fala com o backend (pasta
 
 | Área | Rota | Login | Dados |
 |---|---|---|---|
+| Criar conta | `#/cadastro` | **não precisa** | reais — Supabase Auth; entra sempre como Mecânico (precisa de `database/cadastro.sql`) |
 | Perguntar à IA (RAG) | `#/ia` | **não precisa** | reais — `POST /api/chat`, fontes com link para o PDF na página citada |
 | Manuais | `#/manuais` | **não precisa** | reais — busca por título, categoria ou texto do manual |
 | Busca e ficha de peça, chamados | `#/inicio`, `#/busca/…`, `#/peca/…`, `#/chamados` | sim | reais |
 | CMS → Manuais | `#/admin/manuais` | ADMIN | reais — **importar do SharePoint**, enviar PDF (vários de uma vez), status ao vivo, trechos, editar, ativar/desativar, reprocessar, excluir |
 | CMS → Categorias | `#/admin/categorias` | ADMIN | reais |
 | CMS → Base de conhecimento | `#/admin/base-conhecimento` | ADMIN | reais — resumo da indexação e teste da busca |
+| CMS → Testar IA | `#/admin/teste-ia` | ADMIN | reais — Gemini **livre** (responde qualquer coisa, sem manuais), com os manuais (RAG) ou os dois **lado a lado** |
+| CMS → Usuários | `#/admin/usuarios` | ADMIN | reais — quem se cadastrou e troca de perfil (Mecânico/Técnico/Admin/Cliente) |
 | CMS → Dashboard | `#/admin` | ADMIN/TÉCNICO | números dos manuais reais; o resto é demo |
-| CMS → Peças, Aplicações, Tutoriais, Vídeos, Ferramentas, Problemas, Soluções, Usuários | `#/admin/…` | ADMIN/TÉCNICO | **demo** (selo no menu, nada é salvo) |
+| CMS → Peças, Aplicações, Tutoriais, Vídeos, Ferramentas, Problemas, Soluções | `#/admin/…` | ADMIN/TÉCNICO | **demo** (selo no menu, nada é salvo) |
 
 Sem login, o topo mostra só "Perguntar à IA", "Manuais" e o botão "Entrar".
 Quando o token do Supabase expira (1 hora), o front renova sozinho com o
