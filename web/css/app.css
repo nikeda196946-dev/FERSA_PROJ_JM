@@ -660,3 +660,14 @@ h3 .selo-demo{margin-left:8px;vertical-align:middle;}
 .sp-resumo{margin-bottom:8px;}
 .sp-tabela{max-height:300px;overflow-y:auto;}
 .sp-opcoes{align-items:end;margin-top:14px;}
+.select-perfil{min-height:38px;border:1px solid var(--border-strong);background:var(--bg);padding:0 8px;font-size:0.88rem;}
+#form-teste-ia textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);padding:10px 12px;font-size:0.95rem;resize:vertical;}
+.teste-ia-bloco{margin-top:16px;}
+.teste-ia-bloco:not(.aberto){opacity:0.85;}
+.teste-ia-pergunta{color:var(--text);font-weight:600;margin:4px 0 12px;}
+.teste-ia-colunas.duas{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.teste-ia-col h4{margin-bottom:8px;}
+.teste-ia-colunas.duas .teste-ia-col{border:1px solid var(--border);background:var(--bg);padding:12px 14px;}
+.teste-ia-nota{display:flex;gap:6px;align-items:flex-start;margin-top:12px;}
+.teste-ia-nota .ico{width:16px;height:16px;flex:none;margin-top:2px;}
+@media (max-width:820px){.teste-ia-colunas.duas{grid-template-columns:1fr;}}

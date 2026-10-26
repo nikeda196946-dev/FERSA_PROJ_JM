@@ -1,7 +1,8 @@
 /* =====================================================================
    FERSA Care — CMS (área administrativa)
-   Reais (backend): Dashboard (números dos manuais), Manuais, Categorias e
-   Base de conhecimento — só ADMIN, igual ao backend (/api/admin/**).
+   Reais (backend): Dashboard (números dos manuais), Manuais, Categorias,
+   Base de conhecimento, Testar IA e Usuários — só ADMIN, igual ao backend
+   (/api/admin/**).
    Demonstrativas (mock, nada é salvo): as seções marcadas com demo: true.
    ===================================================================== */
 
@@ -9,7 +10,9 @@ const MENU_ADMIN = [
   { id: "", label: "Dashboard", ico: "dashboard" },
   { id: "manuais", label: "Manuais", ico: "manual", perfis: ["ADMIN"] },
   { id: "categorias", label: "Categorias", ico: "base", perfis: ["ADMIN"] },
-  { id: "base-conhecimento", label: "Base de conhecimento", ico: "ia", perfis: ["ADMIN"] },
+  { id: "base-conhecimento", label: "Base de conhecimento", ico: "base", perfis: ["ADMIN"] },
+  { id: "teste-ia", label: "Testar IA", ico: "ia", perfis: ["ADMIN"] },
+  { id: "usuarios", label: "Usuários", ico: "usuario", perfis: ["ADMIN"] },
   { id: "pecas", label: "Peças", ico: "peca", demo: true },
   { id: "aplicacoes", label: "Aplicações", ico: "peca", demo: true },
   { id: "tutoriais", label: "Tutoriais", ico: "instalar", demo: true },
@@ -17,8 +20,7 @@ const MENU_ADMIN = [
   { id: "ferramentas", label: "Ferramentas", ico: "ferramentas", demo: true },
   { id: "problemas", label: "Problemas", ico: "problema", demo: true },
   { id: "solucoes", label: "Soluções", ico: "check", demo: true },
-  { id: "chamados", label: "Chamados", ico: "chamado", href: "#/chamados" },
-  { id: "usuarios", label: "Usuários", ico: "usuario", perfis: ["ADMIN"], demo: true }
+  { id: "chamados", label: "Chamados", ico: "chamado", href: "#/chamados" }
 ];
 
 function podeVerItemMenu(item, sessao){
@@ -39,7 +41,7 @@ function montarAdmin(secaoAtiva, htmlDireita){
       </aside>
       <div class="admin-conteudo">
         <span class="tag-cms" style="margin-bottom:12px;display:inline-block;">CMS · ${esc(rotuloPerfil(sessao.perfil))}</span>
-        ${demo ? `<div class="aviso-prototipo" style="margin:0 0 16px;">${ICONES.info}<span>Seção demonstrativa: usa dados fictícios e nada do que for alterado aqui é salvo. As seções reais são Manuais, Categorias e Base de conhecimento.</span></div>` : ""}
+        ${demo ? `<div class="aviso-prototipo" style="margin:0 0 16px;">${ICONES.info}<span>Seção demonstrativa: usa dados fictícios e nada do que for alterado aqui é salvo. As seções reais são Manuais, Categorias, Base de conhecimento, Testar IA e Usuários.</span></div>` : ""}
         ${htmlDireita}
       </div>
     </div>`);
@@ -773,22 +775,144 @@ function abrirModalVisualizar(titulo, corpoHtml){
   return fundo;
 }
 
-/* ---------------- Usuários ---------------- */
+/* ---------------- Usuários (real: /api/admin/usuarios) ----------------
+   Quem se cadastra entra como Mecânico; aqui o admin promove. */
+const PERFIS_USUARIO = ["MECANICO", "TECNICO", "ADMIN", "CLIENTE"];
+
 rota("/admin/usuarios", () => {
-  montarAdmin("usuarios", estadoCarregando());
-  api.cmsListarUsuarios().then(lista => {
-    montarAdmin("usuarios", `
-      ${cabAdmin("Usuários", "Contas de acesso ao FERSA Care.")}
-      <div class="tabela-wrap"><table class="tabela">
-        <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th></tr></thead>
-        <tbody>${lista.map(u => `<tr>
-          <td data-rot="Nome">${esc(u.nome)}</td>
-          <td data-rot="E-mail">${esc(u.email)}</td>
-          <td data-rot="Perfil"><span class="badge b-info">${esc(rotuloPerfil(u.perfil))}</span></td>
-        </tr>`).join("")}</tbody>
-      </table></div>`);
-  });
+  montarAdmin("usuarios", estadoCarregando("Carregando usuários…"));
+  api.cmsListarUsuarios().then(telaUsuariosAdmin)
+    .catch(err => montarAdmin("usuarios", estadoErro({ titulo: "Não foi possível carregar os usuários", texto: err.message })));
 }, ["ADMIN"]);
+
+function telaUsuariosAdmin(usuarios){
+  const sessao = Sessao.atual();
+  const data = (v) => v ? new Date(v).toLocaleDateString("pt-BR") : "—";
+  montarAdmin("usuarios", `
+    ${cabAdmin("Usuários", "Contas de acesso. Quem se cadastra pela tela de login entra como Mecânico — promova aqui para Técnico ou Administrador.")}
+    <div class="barra-ferramentas">
+      <div class="campo-busca">${ICONES.busca}<input id="busca-usuarios" type="text" placeholder="Buscar por nome ou e-mail…"></div>
+    </div>
+    <div class="tabela-wrap"><table class="tabela">
+      <thead><tr><th>Usuário</th><th>Perfil</th><th>Cadastro</th><th>Último acesso</th><th>E-mail</th></tr></thead>
+      <tbody id="corpo-usuarios">${usuarios.map(u => `<tr data-busca="${esc((u.nome + " " + u.email).toLowerCase())}">
+        <td data-rot="Usuário"><strong>${esc(u.nome)}</strong>${u.id === sessao.id ? ` <span class="texto-suave">(você)</span>` : ""}<br><small class="texto-suave">${esc(u.email || "")}</small></td>
+        <td data-rot="Perfil">
+          <select class="select-perfil" data-perfil-usuario="${esc(u.id)}" data-atual="${esc(u.perfil || "")}" aria-label="Perfil de ${esc(u.nome)}">
+            ${u.perfil ? "" : `<option value="" selected>Sem perfil — escolha</option>`}
+            ${PERFIS_USUARIO.map(p => `<option value="${p}" ${u.perfil === p ? "selected" : ""}>${esc(rotuloPerfil(p))}</option>`).join("")}
+          </select>
+          ${u.perfil ? "" : `<div class="erro-doc">Conta sem perfil: não consegue entrar até receber um.</div>`}
+        </td>
+        <td data-rot="Cadastro">${data(u.criadoEm)}</td>
+        <td data-rot="Último acesso">${u.ultimoAcesso ? data(u.ultimoAcesso) : `<span class="texto-suave">nunca</span>`}</td>
+        <td data-rot="E-mail">${u.emailConfirmado ? `<span class="badge b-ok">confirmado</span>` : `<span class="badge b-alerta">não confirmado</span>`}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${usuarios.length ? "" : estadoVazio({ titulo: "Nenhum usuário", texto: "Quando alguém criar conta pela tela de login, aparece aqui." })}`);
+
+  document.getElementById("busca-usuarios").addEventListener("input", (e) => {
+    const t = e.target.value.trim().toLowerCase();
+    document.querySelectorAll("#corpo-usuarios tr").forEach(tr => { tr.style.display = !t || tr.dataset.busca.includes(t) ? "" : "none"; });
+  });
+  document.getElementById("corpo-usuarios").addEventListener("change", (e) => {
+    const sel = e.target.closest("[data-perfil-usuario]");
+    if(!sel || !sel.value) return;
+    const anterior = sel.dataset.atual;
+    sel.disabled = true;
+    api.cmsAlterarPerfilUsuario(sel.dataset.perfilUsuario, sel.value).then(u => {
+      sel.dataset.atual = u.perfil;
+      toast(`${u.nome} agora é ${rotuloPerfil(u.perfil)}.`, "ok");
+      if(!anterior) api.cmsListarUsuarios().then(telaUsuariosAdmin);
+    }).catch(err => {
+      sel.value = anterior;
+      toast(err.message, "erro");
+    }).finally(() => { sel.disabled = false; });
+  });
+}
+
+/* ---------------- Testar IA (real: chat livre x RAG) ----------------
+   Para o admin experimentar a IA sem depender dos manuais/SharePoint:
+   - Livre: o Gemini responde qualquer coisa, com o conhecimento dele
+   - Com os manuais: o RAG de verdade (mesma chamada da área pública)
+   - Comparar: os dois lado a lado — mostra por que o RAG existe. */
+const EXEMPLOS_TESTE_IA = [
+  "Qual o torque da porca do cubo do rolamento FRS-1001?",
+  "Explique em poucas palavras o que é RAG.",
+  "Qual a capital da França?",
+  "Como lubrificar um rolamento de roda de caminhão?"
+];
+
+rota("/admin/teste-ia", () => {
+  montarAdmin("teste-ia", `
+    ${cabAdmin("Testar IA", "Experimente o Gemini sem precisar de manuais ou do SharePoint — e compare com a resposta baseada nos manuais.")}
+    <div class="painel">
+      <form id="form-teste-ia">
+        <textarea id="pergunta-teste-ia" maxlength="2000" placeholder="Pergunte qualquer coisa…"></textarea>
+        <div class="exemplos" style="margin:10px 0;">
+          ${EXEMPLOS_TESTE_IA.map(ex => `<button type="button" class="exemplo" data-exemplo="${esc(ex)}">${esc(ex)}</button>`).join("")}
+        </div>
+        <div class="grupo-botoes">
+          <button type="submit" class="btn-principal" data-modo="livre">${ICONES.ia} Livre (sem manuais)</button>
+          <button type="submit" class="btn-secundario" data-modo="rag">${ICONES.manual} Com os manuais (RAG)</button>
+          <button type="submit" class="btn-secundario" data-modo="comparar">Comparar lado a lado</button>
+        </div>
+      </form>
+      <p class="texto-suave" style="margin-top:10px;">O modo livre só existe aqui no CMS: na área pública a IA responde apenas com base nos manuais.</p>
+    </div>
+    <div id="resultados-teste-ia"></div>`);
+  ligarTesteIA();
+}, ["ADMIN"]);
+
+function ligarTesteIA(){
+  const form = document.getElementById("form-teste-ia");
+  const campo = document.getElementById("pergunta-teste-ia");
+  const cont = document.getElementById("resultados-teste-ia");
+  let modo = "livre";
+  form.querySelectorAll("[data-modo]").forEach(b => b.addEventListener("click", () => { modo = b.dataset.modo; }));
+  form.querySelectorAll("[data-exemplo]").forEach(b => b.addEventListener("click", () => { campo.value = b.dataset.exemplo; campo.focus(); }));
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const pergunta = campo.value.trim();
+    if(!pergunta){ toast("Digite uma pergunta.", "erro"); return; }
+    cont.querySelectorAll(".teste-ia-bloco.aberto").forEach(b => b.classList.remove("aberto"));
+    const bloco = document.createElement("div");
+    bloco.className = "painel teste-ia-bloco aberto";
+    const titulos = { livre: "Livre (sem manuais)", rag: "Com os manuais (RAG)", comparar: "Comparação" };
+    bloco.innerHTML = `<div class="ia-rotulo">${esc(titulos[modo])}</div><p class="teste-ia-pergunta">${esc(pergunta)}</p>
+      <div class="teste-ia-colunas ${modo === "comparar" ? "duas" : ""}">
+        ${modo !== "rag" ? `<div class="teste-ia-col" data-col="livre">${modo === "comparar" ? `<h4>Livre (sem manuais)</h4>` : ""}${estadoCarregando("Perguntando ao Gemini…")}</div>` : ""}
+        ${modo !== "livre" ? `<div class="teste-ia-col" data-col="rag">${modo === "comparar" ? `<h4>Com os manuais (RAG)</h4>` : ""}${estadoCarregando("Buscando nos manuais…")}</div>` : ""}
+      </div>
+      ${modo === "comparar" ? `<p class="texto-suave teste-ia-nota">${ICONES.info} Sem RAG o modelo responde com o que "acha" que sabe e pode inventar valores técnicos. Com RAG ele só usa os trechos dos manuais e mostra de onde tirou — ou diz que não encontrou.</p>` : ""}`;
+    cont.insertBefore(bloco, cont.firstChild);
+    const botoes = form.querySelectorAll("button[type=submit]");
+    botoes.forEach(b => { b.disabled = true; });
+    const erroTexto = (err) => err.status === 503 ? "A IA está indisponível agora. Tente de novo em instantes." : err.message;
+    const titulo = (col) => modo === "comparar" ? `<h4>${col === "livre" ? "Livre (sem manuais)" : "Com os manuais (RAG)"}</h4>` : "";
+
+    const tarefas = [];
+    const colLivre = bloco.querySelector('[data-col="livre"]');
+    if(colLivre){
+      tarefas.push(api.cmsPerguntarLivre(pergunta).then(r => {
+        colLivre.innerHTML = `${titulo("livre")}<div class="ia-resposta">${formatarRespostaIA(r.resposta)}</div>
+          <p class="ia-modelo">Gerado por ${esc(r.modelo)} · sem fontes: conhecimento geral do modelo.</p>`;
+      }).catch(err => { colLivre.innerHTML = titulo("livre") + estadoErro({ titulo: "Falhou", texto: erroTexto(err) }); }));
+    }
+    const colRag = bloco.querySelector('[data-col="rag"]');
+    if(colRag){
+      tarefas.push(api.perguntarIA(pergunta, null).then(res => {
+        colRag.innerHTML = `${titulo("rag")}<div class="ia-resposta ${res.encontrouConteudo ? "" : "sem-info"}">${formatarRespostaIA(res.resposta)}</div>
+          ${res.fontes.length ? `<h4 style="margin:10px 0 6px;">Fontes</h4>` + res.fontes.map(f => `
+            <div class="chunk-item"><strong>${esc(f.documento)}${f.pagina ? ` — página ${f.pagina}` : ""}</strong><p>${esc(f.trecho)}</p>
+              <a class="link-simples" href="${esc(f.pdfUrl)}" target="_blank" rel="noopener">Abrir PDF</a></div>`).join("") : ""}
+          ${res.modelo ? `<p class="ia-modelo">Gerado por ${esc(res.modelo)} a partir dos manuais cadastrados.</p>` : ""}`;
+      }).catch(err => { colRag.innerHTML = titulo("rag") + estadoErro({ titulo: "Falhou", texto: erroTexto(err) }); }));
+    }
+    Promise.allSettled(tarefas).then(() => botoes.forEach(b => { b.disabled = false; }));
+  });
+}
 
 /* ---------------- Documentos: antigo atalho, hoje vai para Manuais ---------------- */
 rota("/admin/documentos", () => { irPara("/admin/manuais"); }, ["ADMIN"]);
