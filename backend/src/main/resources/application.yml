@@ -28,6 +28,9 @@ management:
 # automaticamente; é o nosso SecurityConfig que injeta estes valores.
 fersa:
   supabase:
+    url: ${SUPABASE_URL:https://ckyxeffcseqghsqfnkes.supabase.co}
+    anon-key: ${SUPABASE_ANON_KEY:}
+    jwt-secret: ${SUPABASE_JWT_SECRET:}
     # JWKS do projeto Supabase: https://<project-ref>.supabase.co/auth/v1/jwks
     jwks-url: ${SUPABASE_JWKS_URL}
     # Emissor esperado no token: https://<project-ref>.supabase.co/auth/v1
@@ -42,13 +45,15 @@ fersa:
     modelo-embedding: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
     # Precisa bater com vector(768) em database/manuais.sql
     embedding-dimensoes: 768
-    # "gemini-flash-latest" é um alias que o Google mantém apontando para o
-    # Flash mais novo (em out/2026: gemini-3.8-flash). O gemini-2.5-flash já
-    # devolve 404 para contas novas.
-    modelo-chat: ${GEMINI_CHAT_MODEL:gemini-flash-latest}
-    # Usado quando o principal responde 503 (alta demanda), 429, 404 ou estoura o tempo.
+    # Aliases que o Google mantém apontando para o modelo mais novo de cada
+    # linha (em out/2026: gemini-3.5-flash-lite e gemini-3.8-flash). O Lite é
+    # o principal porque, nos testes, respondeu em 2 a 9 s com a mesma
+    # qualidade, enquanto o Flash dava timeout, 503 (alta demanda) ou 429
+    # (cota do plano gratuito). O gemini-2.5-flash já devolve 404 para contas novas.
+    modelo-chat: ${GEMINI_CHAT_MODEL:gemini-flash-lite-latest}
+    # Usado quando o principal responde 503, 429, 404 ou estoura o tempo.
     # Vazio = sem reserva.
-    modelo-chat-reserva: ${GEMINI_CHAT_MODEL_RESERVA:gemini-flash-lite-latest}
+    modelo-chat-reserva: ${GEMINI_CHAT_MODEL_RESERVA:gemini-flash-latest}
     # thinkingLevel dos modelos Gemini 3+ ("low" ou "high"). "low" deixa a
     # resposta 2 a 3x mais rápida, o que basta para responder a partir de
     # trechos. Vazio = não manda (necessário se trocar para um modelo 2.5).
@@ -62,3 +67,20 @@ fersa:
     # Similaridade mínima (0 a 1) para um trecho entrar no prompt.
     # 0 = desligado; ajustar na semana 4 olhando os scores das 10 perguntas de teste.
     score-minimo: ${FERSA_RAG_SCORE_MINIMO:0}
+  sharepoint:
+    # App registrado no Entra ID (ver backend/README.md → "Conectar ao SharePoint").
+    # Vazio = importação do SharePoint desligada (o upload manual continua).
+    tenant-id: ${SHAREPOINT_TENANT_ID:}
+    client-id: ${SHAREPOINT_CLIENT_ID:}
+    client-secret: ${SHAREPOINT_CLIENT_SECRET:}
+    # URL do site, copiada do navegador (ex.: https://empresa.sharepoint.com/sites/Manuais)
+    site-url: ${SHAREPOINT_SITE_URL:}
+    # Pasta dentro da biblioteca "Documentos" do site (ex.: Manuais/Rolamentos). Vazio = raiz.
+    pasta: ${SHAREPOINT_PASTA:}
+    # Subpasta vira categoria do manual (criada se não existir)
+    categoria-pela-pasta: ${SHAREPOINT_CATEGORIA_PELA_PASTA:true}
+    # Sincronização automática (importa novos e alterados). 0 = só pelo botão no CMS.
+    sincronizacao-minutos: ${SHAREPOINT_SYNC_MINUTOS:0}
+    tamanho-maximo-mb: 25
+    login-url: ${SHAREPOINT_LOGIN_URL:https://login.microsoftonline.com}
+    graph-url: ${SHAREPOINT_GRAPH_URL:https://graph.microsoft.com/v1.0}

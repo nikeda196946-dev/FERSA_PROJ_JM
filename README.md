@@ -5,9 +5,10 @@ com rolamentos — projeto acadêmico. Busca tradicional (Part Number,
 aplicação, veículo, modelo, categoria, texto), ficha da peça, abertura e
 atendimento de chamados já conectados ponta a ponta. O sistema de manuais
 com RAG (upload de PDF → embeddings do Gemini → pgvector → `/api/chat`
-com fontes) e o CMS de manuais/categorias já existem no backend; as telas
-de IA e admin do Web ainda são demonstrativas até a semana 3 do
-cronograma.
+com fontes) funciona no navegador: área pública sem login (Perguntar à IA
+e Manuais) e CMS de manuais e categorias para o ADMIN, com importação dos
+PDFs de uma pasta do SharePoint (Microsoft Graph). As seções do CMS de
+peças/ferramentas/problemas continuam demonstrativas (marcadas "demo").
 
 ## Estrutura do repositório
 
@@ -29,7 +30,8 @@ Web (navegador)
    │  demais chamadas: Bearer <access_token> do Supabase
    ▼
 Backend Spring Boot  ──valida o JWT via JWKS──▶  Supabase Auth
-   │        └──embeddings + resposta do chat──▶  Gemini (Google AI)
+   │        ├──embeddings + resposta do chat──▶  Gemini (Google AI)
+   │        └──lê os PDFs (app do Entra ID)──▶  SharePoint (Microsoft Graph)
    ▼
 Supabase Postgres (+ pgvector: chunks dos manuais)
 ```
@@ -43,8 +45,9 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 1. **Banco** — crie um projeto no [supabase.com](https://supabase.com),
    rode `database/schema.sql`, `database/seed.sql` e `database/manuais.sql`
    no SQL Editor.
-   Crie os usuários de teste em Authentication → Add user (ver
-   `database/seed.sql`, bloco final).
+   Crie os usuários de teste em Authentication → Users → Add user e
+   vincule-os aos perfis rodando `database/test-users.sql` (detalhes em
+   `database/README.md`).
 2. **Backend** — siga `backend/README.md` (`.env` a partir do
    `.env.example`, depois `./run.sh` ou `run.cmd`).
 3. **Web** — siga `web/README.md` (`config.js` a partir do
@@ -57,16 +60,16 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 | Web | HTML, CSS, JavaScript (sem framework) |
 | Backend | Java 21, Spring Boot 3, Spring Security (Resource Server), JdbcTemplate |
 | Banco | Supabase (Postgres + pgvector) |
-| IA / RAG | Gemini (`gemini-embedding-001` + `gemini-flash-latest`, com `gemini-flash-lite-latest` de reserva), PDFBox para ler os PDFs |
+| IA / RAG | Gemini (`gemini-embedding-001` + `gemini-flash-lite-latest`, com `gemini-flash-latest` de reserva), resposta em JSON via `responseSchema`, PDFBox para ler os PDFs |
 | Auth | Supabase Auth (JWT assinado, validado pelo backend via JWKS) |
 | Android | planejado — consumirá a mesma API do backend |
 
 ## O que falta (nesta ordem)
 
-1. Ligar o Web às rotas de manuais: busca + chat com fontes na área
-   pública, e o CMS (tabela de manuais, categorias, upload) no admin
-   (semana 3 do cronograma).
-2. Importar do SharePoint (semana 3; se travar, fica só o upload manual).
+1. Registrar o app no Entra ID e testar a importação com o SharePoint real
+   (a integração já existe — passo a passo em `backend/README.md`, seção
+   "Conectar ao SharePoint").
+2. Semana 4: 10 perguntas de teste, prints no README, slides e ensaio da demo.
 3. CMS de escrita do catálogo de peças no backend.
 4. Aplicativo Android, consumindo a mesma API.
 

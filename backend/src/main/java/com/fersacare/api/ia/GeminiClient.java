@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClientResponseException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -94,17 +95,29 @@ public class GeminiClient {
         return embedLote(List.of(pergunta), "RETRIEVAL_QUERY", null).get(0);
     }
 
-    /**
-     * Gera a resposta do chat. O modelo principal tem uma tentativa; se ele
-     * estiver sobrecarregado, lento ou indisponível, o reserva tem duas.
-     * Erro que outro modelo não resolveria (chave inválida, pedido mal
-     * formado) falha na hora.
-     */
+    /** Geração de texto livre. */
     public Geracao gerar(String instrucaoSistema, String mensagemUsuario) {
+        return gerar(instrucaoSistema, mensagemUsuario, null);
+    }
+
+    /**
+     * Gera a resposta do chat. Com {@code esquemaJson}, a própria API obriga
+     * a saída a ser um JSON nesse formato (responseMimeType + responseSchema)
+     * — o formato não depende só do modelo "obedecer" ao prompt.
+     *
+     * O modelo principal tem uma tentativa; se ele estiver sobrecarregado,
+     * lento ou indisponível, o reserva tem duas. Erro que outro modelo não
+     * resolveria (chave inválida, pedido mal formado) falha na hora.
+     */
+    public Geracao gerar(String instrucaoSistema, String mensagemUsuario, Map<String, Object> esquemaJson) {
         GenerateRequest corpo = new GenerateRequest(
             new Content(null, List.of(new Part(instrucaoSistema, null))),
             List.of(new Content("user", List.of(new Part(mensagemUsuario, null)))),
-            new GenerationConfig(0.2, nivelRaciocinio == null ? null : new ThinkingConfig(nivelRaciocinio))
+            new GenerationConfig(
+                0.2,
+                nivelRaciocinio == null ? null : new ThinkingConfig(nivelRaciocinio),
+                esquemaJson == null ? null : "application/json",
+                esquemaJson)
         );
 
         try {
@@ -268,7 +281,8 @@ public class GeminiClient {
     record ThinkingConfig(String thinkingLevel) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    record GenerationConfig(Double temperature, ThinkingConfig thinkingConfig) {}
+    record GenerationConfig(
+        Double temperature, ThinkingConfig thinkingConfig, String responseMimeType, Map<String, Object> responseSchema) {}
 
     record GenerateRequest(Content systemInstruction, List<Content> contents, GenerationConfig generationConfig) {}
 

@@ -1,6 +1,7 @@
 package com.fersacare.api.common;
 
 import com.fersacare.api.ia.IaIndisponivelException;
+import com.fersacare.api.sharepoint.SharePointException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,13 @@ public class GlobalExceptionHandler {
         log.warn("Gemini indisponível em {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
             .body(ApiError.de(503, "IA indisponível", "O serviço de IA não respondeu. Tente novamente em instantes.", req.getRequestURI()));
+    }
+
+    @ExceptionHandler(SharePointException.class)
+    public ResponseEntity<ApiError> tratarSharePoint(SharePointException ex, HttpServletRequest req) {
+        log.warn("SharePoint em {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            .body(ApiError.de(502, "Erro no SharePoint", ex.getMessage(), req.getRequestURI()));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

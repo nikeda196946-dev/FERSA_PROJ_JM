@@ -19,6 +19,10 @@ const Sessao = {
 /* ---------------- Roteador por hash ---------------- */
 const ROTAS = []; // { padrao: RegExp, chaves: [...], perfis: [...] ou null, render: fn(params) }
 
+// Abrem sem login: a área pública do sistema de manuais (o backend também
+// libera /api/chat, /api/manuais e /api/categorias sem token).
+const ROTAS_PUBLICAS = ["/login", "/recuperar-senha", "/ia", "/manuais"];
+
 function rota(padraoTexto, render, perfis){
   const chaves = [];
   const regexTexto = padraoTexto.replace(/:[a-zA-Z]+/g, (m) => {
@@ -38,7 +42,7 @@ function renderRota(){
   const semQuery = hash.split("?")[0];
   const sessao = Sessao.atual();
 
-  if(!sessao && semQuery !== "/login" && semQuery !== "/recuperar-senha"){
+  if(!sessao && !ROTAS_PUBLICAS.includes(semQuery)){
     window.location.hash = "/login";
     return;
   }
@@ -94,10 +98,12 @@ function rotaAtualBase(){
 function topbar(){
   const sessao = Sessao.atual();
   const base = rotaAtualBase();
+  if(!sessao) return topbarPublica(base);
   const itens = [
     { href: "#/inicio", rot: "inicio", label: "Início" },
     { href: "#/busca/geral", rot: "busca", label: "Buscar peça" },
     { href: "#/ia", rot: "ia", label: "Perguntar à IA" },
+    { href: "#/manuais", rot: "manuais", label: "Manuais" },
     { href: "#/chamados", rot: "chamados", label: "Meus chamados" }
   ];
   const ehAdmin = sessao && sessao.perfil !== "MECANICO";
@@ -114,6 +120,20 @@ function topbar(){
       </div>
     </div>`;
 }
+/* Sem login: só a área pública (chat e manuais) e o botão de entrar. */
+function topbarPublica(base){
+  const itens = [
+    { href: "#/ia", rot: "ia", label: "Perguntar à IA" },
+    { href: "#/manuais", rot: "manuais", label: "Manuais" }
+  ];
+  return `
+    <div class="topbar">
+      <a class="marca" href="#/ia"><span class="ponto"></span><span class="texto-marca">FERSA Care</span></a>
+      <nav class="nav-principal">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${esc(i.label)}</a>`).join("")}</nav>
+      <div class="acoes"><a class="btn-secundario btn-pequeno" href="#/login">${ICONES.usuario} Entrar</a></div>
+    </div>`;
+}
+
 function navInferior(){
   const sessao = Sessao.atual();
   if(!sessao || sessao.perfil !== "MECANICO") return "";
@@ -122,6 +142,7 @@ function navInferior(){
     { href: "#/inicio", rot: "inicio", label: "Início", ico: ICONES.dashboard },
     { href: "#/busca/geral", rot: "busca", label: "Buscar", ico: ICONES.busca },
     { href: "#/ia", rot: "ia", label: "IA", ico: ICONES.ia },
+    { href: "#/manuais", rot: "manuais", label: "Manuais", ico: ICONES.manual },
     { href: "#/chamados", rot: "chamados", label: "Chamados", ico: ICONES.chamado }
   ];
   return `<nav class="nav-inferior">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${i.ico}${esc(i.label)}</a>`).join("")}</nav>`;

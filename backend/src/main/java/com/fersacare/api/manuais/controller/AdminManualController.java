@@ -4,14 +4,19 @@ import com.fersacare.api.manuais.dto.AlterarAtivoRequest;
 import com.fersacare.api.manuais.dto.AtualizarManualRequest;
 import com.fersacare.api.manuais.dto.ManualChunkDTO;
 import com.fersacare.api.manuais.dto.ManualDTO;
+import com.fersacare.api.manuais.repository.ManualRepository;
 import com.fersacare.api.manuais.service.ManualService;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +58,17 @@ public class AdminManualController {
     @GetMapping("/{id}")
     public ManualDTO buscar(@PathVariable UUID id) {
         return manualService.buscar(id);
+    }
+
+    /** O PDF original, mesmo de manual inativo ou com erro (o público só entrega ativos e prontos). */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> baixarPdf(@PathVariable UUID id) {
+        ManualRepository.ArquivoPdf arquivo = manualService.baixar(id);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                .filename(arquivo.nomeArquivo(), StandardCharsets.UTF_8).build().toString())
+            .body(arquivo.conteudo());
     }
 
     /** Para conferir a ingestão: o texto de cada chunk e a dimensão do vetor gravado. */

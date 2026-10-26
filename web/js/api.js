@@ -87,53 +87,6 @@ const api = {
     }catch(e){ return atraso([]); }
   },
 
-  /* ---------------- Busca por IA (mock — futuro RAG) ---------------- */
-  perguntarIA(pergunta, pecaId){
-    const texto = (pergunta || "").trim();
-    if(!texto) return atrasoErro("Digite uma pergunta.");
-    const textoNorm = texto.toLowerCase();
-
-    // 1) tenta identificar Part Number citado na pergunta (padrão FRS-####)
-    const matchPN = textoNorm.match(/frs[\s-]?(\d{3,4})/i);
-    let contexto = pecaId ? PECAS.find(p => p.id === Number(pecaId)) : null;
-    if(!contexto && matchPN){
-      contexto = PECAS.find(p => p.partNumber.toLowerCase().replace(/[\s-]/g, "") === ("frs" + matchPN[1]));
-    }
-
-    // 2) busca por palavra-chave na base simulada, priorizando a peça de contexto
-    let candidatos = IA_BASE.filter(item => item.palavrasChave.some(k => textoNorm.includes(k)));
-    if(contexto){
-      const doContexto = candidatos.filter(c => c.pecaId === contexto.id || c.pecaId === null);
-      if(doContexto.length) candidatos = doContexto;
-    }
-
-    const registro = {
-      id: "consulta-" + Date.now(),
-      pergunta: texto,
-      pecaContexto: contexto ? contexto.partNumber : null,
-      respondidoEm: new Date().toLocaleString("pt-BR")
-    };
-
-    if(!candidatos.length){
-      return atraso({
-        ...registro,
-        encontrouConteudo: false,
-        resposta: "Não encontrei informação suficiente nos materiais disponíveis. Consulte um técnico ou abra um chamado de suporte.",
-        fontes: [],
-        sugestoesPeca: contexto ? [] : PECAS.slice(0, 3)
-      }, LATENCIA + 500);
-    }
-
-    const escolhida = candidatos[0];
-    return atraso({
-      ...registro,
-      encontrouConteudo: true,
-      resposta: escolhida.resposta,
-      fontes: escolhida.fontes,
-      pecaRelacionadaId: escolhida.pecaId || (contexto ? contexto.id : null)
-    }, LATENCIA + 500);
-  },
-
   /* ---------------- Chamados ---------------- */
   abrirChamado(dados){
     SEQ_CHAMADO += 1;
@@ -207,23 +160,6 @@ const api = {
   /* ---------------- CMS: Ferramentas / Problemas ---------------- */
   cmsListarFerramentas(){ return atraso(FERRAMENTAS); },
   cmsListarProblemas(){ return atraso(PROBLEMAS); },
-  cmsListarManuais(){ return atraso(Object.values(MANUAIS)); },
-
-  /* ---------------- CMS: Base de conhecimento ---------------- */
-  cmsListarDocumentos(){ return atraso(BASE_CONHECIMENTO); },
-  cmsReindexarDocumento(id){
-    const doc = BASE_CONHECIMENTO.find(d => d.id === id);
-    if(!doc) return atrasoErro("Documento não encontrado.");
-    doc.status = "PROCESSANDO";
-    return atraso(doc, 200).then(async () => {
-      await atraso(null, 900);
-      doc.status = "INDEXADO";
-      doc.chunks = doc.chunks || Math.floor(Math.random() * 10) + 8;
-      doc.atualizadoEm = new Date().toLocaleDateString("pt-BR");
-      delete doc.erro;
-      return doc;
-    });
-  },
 
   /* ---------------- CMS: Dashboard ---------------- */
   cmsEstatisticas(){
@@ -234,8 +170,6 @@ const api = {
       totalVideos: PECAS.reduce((n, p) => n + (p.videos ? p.videos.length : 0), 0),
       totalFerramentas: FERRAMENTAS.length,
       totalProblemas: PROBLEMAS.length,
-      documentosIndexados: BASE_CONHECIMENTO.filter(d => d.status === "INDEXADO").length,
-      documentosTotal: BASE_CONHECIMENTO.length,
       chamadosAbertos: CHAMADOS.filter(c => c.status !== "RESOLVIDO").length,
       porCategoria: Object.entries(
         PECAS.reduce((acc, p) => { acc[p.categoria] = (acc[p.categoria] || 0) + 1; return acc; }, {})
@@ -251,28 +185,104 @@ const api = {
   cmsListarUsuarios(){ return atraso(USUARIOS.map(({ senha, ...u }) => u)); }
 };
 
-/* ---------------- Integração REST (catálogo, sessão e chamados) ----------------
-   O backend desta fase não possui CMS de escrita nem endpoints de IA/RAG.
-   Os métodos dessas áreas permanecem no mock acima até a próxima fase. */
+/* ---------------- Integração REST ----------------
+   Já vêm do backend: login, catálogo, chamados, Busca por IA (RAG),
+   manuais e categorias (área pública e CMS). Continuam no mock acima só
+   as seções do CMS de peças/ferramentas/problemas/usuários, marcadas como
+   "demo" nas telas. */
 function apiUrl(path){ return FERSA_CONFIG.apiUrl.replace(/\/$/, "") + path; }
-function validarConfigSupabase(){
+let configSupabasePromise;
+async function validarConfigSupabase(){
+  if(!configSupabasePromise){
+    configSupabasePromise = fetch(apiUrl("/api/v1/config"))
+      .then(async r => {
+        if(!r.ok) throw new Error("Não foi possível carregar a configuração do Supabase.");
+        const config = await r.json();
+        FERSA_CONFIG.supabaseUrl = config.supabaseUrl || "";
+        FERSA_CONFIG.supabaseAnonKey = config.supabaseAnonKey || "";
+      })
+      .catch(e => { configSupabasePromise = null; throw e; });
+  }
+  await configSupabasePromise;
   if(!FERSA_CONFIG.supabaseUrl || !FERSA_CONFIG.supabaseAnonKey){
-    throw new Error("Configure supabaseUrl e supabaseAnonKey em js/config.js para habilitar o login.");
+    throw new Error("Configure SUPABASE_URL e SUPABASE_ANON_KEY no .env do backend para habilitar o login.");
   }
 }
-async function requisicaoBackend(path, opcoes = {}){
+/* O access_token do Supabase vale 1 hora. Num 401, renovamos com o
+   refresh_token e repetimos a chamada uma vez; se nem isso funcionar, a
+   sessão acabou de verdade e a pessoa volta para o login. */
+async function renovarSessao(){
   const sessao = Sessao.atual();
-  const headers = { "Content-Type": "application/json", ...(opcoes.headers || {}) };
-  if(sessao?.accessToken) headers.Authorization = `Bearer ${sessao.accessToken}`;
+  if(!sessao?.refreshToken || !FERSA_CONFIG.supabaseUrl) return false;
+  try{
+    const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
+      body: JSON.stringify({ refresh_token: sessao.refreshToken })
+    });
+    if(!r.ok) return false;
+    const novo = await r.json();
+    Sessao.entrar({ ...sessao, accessToken: novo.access_token, refreshToken: novo.refresh_token || sessao.refreshToken });
+    return true;
+  }catch(e){ return false; }
+}
+function sessaoExpirada(){
+  Sessao.sair();
+  toast("Sua sessão expirou. Entre de novo.", "erro");
+  irPara("/login");
+}
+
+/* Erro da API com o status HTTP junto (as telas tratam 503 da IA de um jeito próprio). */
+class ErroApi extends Error {
+  constructor(mensagem, status){ super(mensagem); this.status = status; }
+}
+
+async function chamarBackend(path, opcoes, montarHeaders, jaRenovou){
+  const sessao = Sessao.atual();
+  const headers = montarHeaders();
+  if(sessao?.accessToken && !headers.Authorization) headers.Authorization = `Bearer ${sessao.accessToken}`;
   const resposta = await fetch(apiUrl(path), { ...opcoes, headers });
+  if(resposta.status === 401 && sessao?.accessToken && !jaRenovou && !(opcoes.headers || {}).Authorization){
+    if(await renovarSessao()) return chamarBackend(path, opcoes, montarHeaders, true);
+    sessaoExpirada();
+    throw new ErroApi("Sessão expirada.", 401);
+  }
+  return resposta;
+}
+async function lerResposta(resposta){
   const texto = await resposta.text();
   let dados;
   try{ dados = texto ? JSON.parse(texto) : null; }catch(e){ dados = texto; }
   if(!resposta.ok){
     const mensagem = dados?.mensagem || dados?.erro || dados?.message || `Falha na API (${resposta.status}).`;
-    throw new Error(mensagem);
+    throw new ErroApi(mensagem, resposta.status);
   }
   return dados;
+}
+async function requisicaoBackend(path, opcoes = {}){
+  const r = await chamarBackend(path, opcoes, () => ({ "Content-Type": "application/json", ...(opcoes.headers || {}) }));
+  return lerResposta(r);
+}
+/* Upload: com FormData o navegador monta o Content-Type (multipart + boundary) sozinho. */
+async function requisicaoMultipart(path, formData){
+  const r = await chamarBackend(path, { method: "POST", body: formData }, () => ({}));
+  return lerResposta(r);
+}
+/* PDF protegido (CMS): baixa com o token e abre numa aba nova. */
+async function abrirPdfProtegido(path){
+  const aba = window.open("", "_blank"); // aberta já no clique, senão o navegador bloqueia o pop-up
+  try{
+    const r = await chamarBackend(path, { method: "GET" }, () => ({}));
+    if(!r.ok) throw new ErroApi(`Não foi possível abrir o PDF (${r.status}).`, r.status);
+    const url = URL.createObjectURL(await r.blob());
+    if(aba) aba.location = url; else window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }catch(e){
+    if(aba) aba.close();
+    throw e;
+  }
+}
+function urlPdfPublico(manualId, pagina){
+  return apiUrl(`/api/manuais/${encodeURIComponent(manualId)}/pdf`) + (pagina ? `#page=${pagina}` : "");
 }
 function dataLegivel(valor){
   if(!valor) return "—";
@@ -303,7 +313,7 @@ function normalizarChamado(c){
 }
 Object.assign(api, {
   async login(email, senha){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const base = FERSA_CONFIG.supabaseUrl.replace(/\/$/, "");
     const auth = await fetch(`${base}/auth/v1/token?grant_type=password`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
@@ -315,7 +325,7 @@ Object.assign(api, {
     return { id: perfil.id, nome: perfil.nome, perfil: perfil.perfil, oficina: "", accessToken: credenciais.access_token, refreshToken: credenciais.refresh_token };
   },
   async recuperarSenha(email){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/recover`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey }, body: JSON.stringify({ email })
     });
@@ -348,5 +358,82 @@ Object.assign(api, {
   },
   async buscarChamadoPorId(id){ return normalizarChamado(await requisicaoBackend(`/api/v1/chamados/${encodeURIComponent(id)}`)); },
   async registrarSolucao(id, solucao){ return normalizarChamado(await requisicaoBackend(`/api/v1/chamados/${encodeURIComponent(id)}/solucao`, { method: "POST", body: JSON.stringify({ solucao }) })); },
-  async assumirChamado(id){ return normalizarChamado(await requisicaoBackend(`/api/v1/chamados/${encodeURIComponent(id)}/assumir`, { method: "POST" })); }
+  async assumirChamado(id){ return normalizarChamado(await requisicaoBackend(`/api/v1/chamados/${encodeURIComponent(id)}/assumir`, { method: "POST" })); },
+
+  /* ---------------- Busca por IA (RAG real: POST /api/chat) ---------------- */
+  async perguntarIA(pergunta, peca){
+    const texto = (pergunta || "").trim();
+    if(!texto) throw new Error("Digite uma pergunta.");
+    // Os manuais citam o Part Number; pôr a peça na pergunta ajuda a busca vetorial.
+    const enviada = peca ? `Sobre a peça ${peca.partNumber} (${peca.nome}): ${texto}` : texto;
+    const r = await requisicaoBackend("/api/chat", { method: "POST", body: JSON.stringify({ pergunta: enviada }) });
+    return {
+      id: "consulta-" + Date.now(),
+      pergunta: texto,
+      pecaContexto: peca ? peca.partNumber : null,
+      pecaRelacionadaId: peca ? peca.id : null,
+      encontrouConteudo: r.encontrou,
+      resposta: r.resposta,
+      modelo: r.modelo,
+      sugestoesPeca: [],
+      fontes: (r.fontes || []).map(f => ({
+        numero: f.numero,
+        manualId: f.manualId,
+        documento: f.tituloManual,
+        pagina: f.pagina,
+        secao: f.pagina ? `Página ${f.pagina}` : "",
+        trecho: f.trecho,
+        score: f.score,
+        pdfUrl: urlPdfPublico(f.manualId, f.pagina)
+      }))
+    };
+  },
+
+  /* ---------------- Manuais (área pública) ---------------- */
+  async listarManuaisPublicos(termo, categoriaId){
+    const qs = new URLSearchParams();
+    if(termo) qs.set("termo", termo);
+    if(categoriaId) qs.set("categoriaId", categoriaId);
+    return requisicaoBackend(`/api/manuais${qs.size ? `?${qs}` : ""}`);
+  },
+  async listarCategoriasPublicas(){ return requisicaoBackend("/api/categorias"); },
+
+  /* ---------------- CMS: manuais (só ADMIN) ---------------- */
+  async cmsListarManuais(){ return requisicaoBackend("/api/admin/manuais"); },
+  async cmsBuscarManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}`); },
+  async cmsEnviarManual(arquivo, titulo, categoriaId){
+    const fd = new FormData();
+    fd.append("arquivo", arquivo);
+    if(titulo) fd.append("titulo", titulo);
+    if(categoriaId) fd.append("categoriaId", categoriaId);
+    return requisicaoMultipart("/api/admin/manuais", fd);
+  },
+  async cmsChunksManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}/chunks`); },
+  async cmsAtualizarManual(id, titulo, categoriaId){
+    return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ titulo, categoriaId: categoriaId || null }) });
+  },
+  async cmsAlterarAtivoManual(id, ativo){
+    return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}/ativo`, { method: "PATCH", body: JSON.stringify({ ativo }) });
+  },
+  async cmsReprocessarManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}/reprocessar`, { method: "POST" }); },
+  async cmsExcluirManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  async cmsAbrirPdfManual(id){ return abrirPdfProtegido(`/api/admin/manuais/${encodeURIComponent(id)}/pdf`); },
+
+  /* ---------------- CMS: importação do SharePoint (só ADMIN) ---------------- */
+  async cmsSharePointStatus(){ return requisicaoBackend("/api/admin/sharepoint/status"); },
+  async cmsSharePointArquivos(){ return requisicaoBackend("/api/admin/sharepoint/arquivos"); },
+  async cmsSharePointImportar(itemIds, categoriaId, categoriaPelaPasta){
+    return requisicaoBackend("/api/admin/sharepoint/importar", { method: "POST",
+      body: JSON.stringify({ itemIds: itemIds || null, categoriaId: categoriaId || null, categoriaPelaPasta: !!categoriaPelaPasta }) });
+  },
+
+  /* ---------------- CMS: categorias (só ADMIN) ---------------- */
+  async cmsListarCategorias(){ return requisicaoBackend("/api/admin/categorias"); },
+  async cmsSalvarCategoria(id, dados){
+    const corpo = JSON.stringify({ nome: dados.nome, descricao: dados.descricao || null, ativo: dados.ativo !== false });
+    return id
+      ? requisicaoBackend(`/api/admin/categorias/${encodeURIComponent(id)}`, { method: "PUT", body: corpo })
+      : requisicaoBackend("/api/admin/categorias", { method: "POST", body: corpo });
+  },
+  async cmsExcluirCategoria(id){ return requisicaoBackend(`/api/admin/categorias/${encodeURIComponent(id)}`, { method: "DELETE" }); }
 });
