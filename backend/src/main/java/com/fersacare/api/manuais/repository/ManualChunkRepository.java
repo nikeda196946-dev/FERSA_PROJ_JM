@@ -70,6 +70,12 @@ public class ManualChunkRepository {
      * O "order by embedding <=> vetor" é o que deixa o Postgres usar o índice HNSW.
      */
     public List<TrechoEncontrado> buscarSimilares(float[] vetorPergunta, int topK, double scoreMinimo) {
+        return buscarSimilares(vetorPergunta, topK, scoreMinimo, null);
+    }
+
+    /** Igual, mas só entre os manuais informados (ex.: os ligados a uma peça). null = todos. */
+    public List<TrechoEncontrado> buscarSimilares(float[] vetorPergunta, int topK, double scoreMinimo, List<UUID> manualIds) {
+        String filtroManuais = manualIds == null ? "" : " and m.id in (:manualIds)";
         return jdbc.query("""
             select id, manual_id, titulo, pagina, conteudo, 1 - distancia as score
             from (
@@ -79,13 +85,15 @@ public class ManualChunkRepository {
               join manual m on m.id = mc.manual_id
               left join categoria c on c.id = m.categoria_id
               where m.ativo and m.status = 'pronto' and (m.categoria_id is null or c.ativo)
+              %s
               order by mc.embedding <=> cast(:vetor as vector)
               limit :topK
             ) t
             where 1 - distancia >= :scoreMinimo
             order by distancia
-            """,
+            """.formatted(filtroManuais),
             new MapSqlParameterSource()
+                .addValue("manualIds", manualIds)
                 .addValue("vetor", paraVetor(vetorPergunta))
                 .addValue("topK", topK)
                 .addValue("scoreMinimo", scoreMinimo),

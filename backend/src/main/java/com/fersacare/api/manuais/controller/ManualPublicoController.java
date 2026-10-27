@@ -35,9 +35,10 @@ public class ManualPublicoController {
     @GetMapping("/manuais")
     public List<ManualDTO> buscar(
         @RequestParam(required = false) String termo,
-        @RequestParam(required = false) UUID categoriaId
+        @RequestParam(required = false) UUID categoriaId,
+        @RequestParam(required = false) UUID pecaId
     ) {
-        return manualService.listarPublicos(termo, categoriaId);
+        return manualService.listarPublicos(termo, categoriaId, pecaId);
     }
 
     @GetMapping("/manuais/{id}/pdf")

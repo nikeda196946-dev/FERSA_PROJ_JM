@@ -98,6 +98,24 @@ create index if not exists idx_manual_chunk_embedding on manual_chunk
   using hnsw (embedding vector_cosine_ops);
 
 -- ---------------------------------------------------------------------
+-- Vínculo manual ↔ peça (Part Number)
+-- Preenchido sozinho na ingestão: o backend procura os Part Numbers de
+-- `pecas` no texto, no título e no nome do arquivo ('automatico'). O admin
+-- ajusta no CMS: liga à mão ('manual') ou tira um automático ('removido'
+-- — guardado para o reprocessamento não religar). 'removido' não conta
+-- como vínculo em nenhuma consulta.
+-- ---------------------------------------------------------------------
+create table if not exists manual_peca (
+  manual_id uuid not null references manual(id) on delete cascade,
+  peca_id uuid not null references pecas(id) on delete cascade,
+  origem text not null default 'automatico'
+    check (origem in ('automatico', 'manual', 'removido')),
+  ocorrencias int not null default 0,          -- quantas vezes o Part Number aparece no manual
+  primary key (manual_id, peca_id)
+);
+create index if not exists idx_manual_peca_peca on manual_peca (peca_id);
+
+-- ---------------------------------------------------------------------
 -- RLS ligado
 -- O backend conecta com o usuário do banco (postgres), que ignora RLS —
 -- então quem decide o que é público é a API (rotas /api/admin/** só
@@ -118,3 +136,7 @@ create policy "manual_admin" on manual for all using (meu_perfil() = 'ADMIN');
 
 drop policy if exists "manual_chunk_admin" on manual_chunk;
 create policy "manual_chunk_admin" on manual_chunk for all using (meu_perfil() = 'ADMIN');
+
+alter table manual_peca enable row level security;
+drop policy if exists "manual_peca_admin" on manual_peca;
+create policy "manual_peca_admin" on manual_peca for all using (meu_perfil() = 'ADMIN');

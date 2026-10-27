@@ -260,7 +260,8 @@ function telaManuaisAdmin(estado){
         <button class="btn-secundario" id="btn-enviar-pdf">${ICONES.mais} Enviar PDF</button>
       </div>`)}
     <div class="barra-ferramentas">
-      <div class="campo-busca">${ICONES.busca}<input id="busca-manuais-admin" type="text" placeholder="Buscar por título, arquivo ou categoria…"></div>
+      <div class="campo-busca">${ICONES.busca}<input id="busca-manuais-admin" type="text" placeholder="Buscar por título, arquivo, categoria ou Part Number…"></div>
+      <button class="btn-secundario" id="btn-detectar-pecas" title="Procura os Part Numbers do catálogo no texto de todos os manuais">${ICONES.peca} Detectar peças nos manuais</button>
       <select id="filtro-status-manual" aria-label="Filtrar por status">
         <option value="">Todos os status</option>
         ${Object.entries(ROTULO_STATUS_MANUAL).map(([v, r]) => `<option value="${v}" ${estado.status === v ? "selected" : ""}>${r}</option>`).join("")}
@@ -270,6 +271,14 @@ function telaManuaisAdmin(estado){
 
   document.getElementById("btn-enviar-pdf").addEventListener("click", () => abrirEnvioManuais(estado));
   document.getElementById("btn-importar-sp").addEventListener("click", () => abrirImportacaoSharePoint(estado));
+  document.getElementById("btn-detectar-pecas").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    api.cmsDetectarPecas().then(r => {
+      toast(`${r.vinculos} ligação(ões) peça ↔ manual encontradas em ${r.manuais} manual(is).`, "ok");
+      return api.cmsListarManuais().then(m => { estado.manuais = m; pintarTabelaManuais(estado); });
+    }).catch(err => toast(err.message, "erro")).finally(() => { btn.disabled = false; });
+  });
   document.getElementById("busca-manuais-admin").addEventListener("input", (e) => { estado.termo = e.target.value; pintarTabelaManuais(estado); });
   document.getElementById("filtro-status-manual").addEventListener("change", (e) => { estado.status = e.target.value; pintarTabelaManuais(estado); });
   document.getElementById("tabela-manuais").addEventListener("click", (e) => acaoManual(e, estado));
@@ -292,7 +301,7 @@ function pintarTabelaManuais(estado){
   const t = estado.termo.trim().toLowerCase();
   const lista = estado.manuais.filter(m =>
     (!estado.status || m.status === estado.status) &&
-    (!t || [m.titulo, m.nomeArquivo, m.categoriaNome].filter(Boolean).join(" ").toLowerCase().includes(t)));
+    (!t || [m.titulo, m.nomeArquivo, m.categoriaNome, ...(m.pecas || []).map(p => p.partNumber)].filter(Boolean).join(" ").toLowerCase().includes(t)));
 
   if(!estado.manuais.length){
     cont.innerHTML = estadoVazio({ titulo: "Nenhum manual ainda", texto: "Envie o primeiro PDF para a IA começar a responder com base nele.",
@@ -306,7 +315,7 @@ function pintarTabelaManuais(estado){
   }
   cont.innerHTML = `
     <div class="tabela-wrap"><table class="tabela">
-      <thead><tr><th>Manual</th><th>Categoria</th><th>Páginas</th><th>Trechos</th><th>Status</th><th>Ativo</th><th class="col-acoes">Ações</th></tr></thead>
+      <thead><tr><th>Manual</th><th>Peças</th><th>Categoria</th><th>Páginas</th><th>Trechos</th><th>Status</th><th>Ativo</th><th class="col-acoes">Ações</th></tr></thead>
       <tbody>${lista.map(linhaManualAdmin).join("")}</tbody>
     </table></div>`;
   agendarAtualizacaoManuais(estado);
@@ -319,6 +328,9 @@ function linhaManualAdmin(m){
         ? `<a class="selo-origem" href="${esc(m.sharepointUrl || "#")}" target="_blank" rel="noopener" title="Abrir no SharePoint">SharePoint</a> ${m.sharepointCaminho ? esc(m.sharepointCaminho) + "/" : ""}`
         : ""}${esc(m.nomeArquivo)} · ${formatarTamanho(m.tamanhoBytes)}</small>
       ${m.status === "ERRO" && m.mensagemErro ? `<div class="erro-doc">${esc(m.mensagemErro)}</div>` : ""}</td>
+    <td data-rot="Peças">${(m.pecas || []).length
+      ? `<span class="chips-pn">${m.pecas.map(p => `<span class="chip-pn ${p.origem === "manual" ? "chip-manual" : ""}" title="${esc(p.nome)} — ${p.origem === "manual" ? "ligada pelo admin" : `achada no texto (${p.ocorrencias}x)`}">${esc(p.partNumber)}</span>`).join("")}</span>`
+      : `<span class="texto-suave">nenhuma</span>`}</td>
     <td data-rot="Categoria">${m.categoriaNome ? esc(m.categoriaNome) : `<span class="texto-suave">Sem categoria</span>`}</td>
     <td data-rot="Páginas">${m.totalPaginas ?? "—"}</td>
     <td data-rot="Trechos">${m.status === "PRONTO" ? m.totalChunks : "—"}</td>
@@ -432,18 +444,44 @@ function abrirModalFormulario(titulo, corpoHtml, textoSalvar){
 }
 
 function abrirEdicaoManual(m, estado){
+  const ligadas = new Set((m.pecas || []).map(p => p.id));
   const { fundo, form, fechar } = abrirModalFormulario("Editar manual", `
     <div class="campo" id="campo-em-titulo"><label for="em-titulo">Título</label><input id="em-titulo" type="text" maxlength="200" value="${esc(m.titulo)}"></div>
     <div class="campo"><label for="em-categoria">Categoria</label><select id="em-categoria">${opcoesCategoria(estado.categorias, m.categoriaId)}</select></div>
+    <div class="campo">
+      <label for="em-busca-peca">Peças deste manual (Part Number)</label>
+      <small class="texto-suave">As marcadas como "achada no texto" foram ligadas sozinhas. Desmarcar uma tira a ligação — e ela não volta ao reprocessar.</small>
+      <input id="em-busca-peca" type="text" placeholder="Filtrar por Part Number ou nome…" style="margin-top:8px;">
+      <div class="lista-pecas-manual" id="em-pecas">${estadoCarregando("Carregando peças…")}</div>
+    </div>
     <p class="texto-suave">Mudar o título não reprocessa o PDF; o título novo já aparece nas fontes do chat.</p>`, "Salvar");
+
+  api.listarTodasPecas().then(pecas => {
+    const auto = new Map((m.pecas || []).filter(p => p.origem === "automatico").map(p => [p.id, p.ocorrencias]));
+    fundo.querySelector("#em-pecas").innerHTML = pecas.length ? pecas.map(p => `
+      <label class="item-peca-manual" data-busca="${esc((p.partNumber + " " + p.nome).toLowerCase())}">
+        <input type="checkbox" value="${esc(p.id)}" ${ligadas.has(p.id) ? "checked" : ""}>
+        <span class="chip-pn">${esc(p.partNumber)}</span> <span>${esc(p.nome)}</span>
+        ${auto.has(p.id) ? `<small class="texto-suave">achada no texto (${auto.get(p.id)}x)</small>` : ""}
+      </label>`).join("") : `<p class="texto-suave">Nenhuma peça no catálogo.</p>`;
+  }).catch(err => { fundo.querySelector("#em-pecas").innerHTML = `<p class="erro-doc">${esc(err.message)}</p>`; });
+  fundo.querySelector("#em-busca-peca").addEventListener("input", (e) => {
+    const t = e.target.value.trim().toLowerCase();
+    fundo.querySelectorAll(".item-peca-manual").forEach(l => { l.style.display = !t || l.dataset.busca.includes(t) ? "" : "none"; });
+  });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const titulo = fundo.querySelector("#em-titulo").value.trim();
     fundo.querySelector("#campo-em-titulo").classList.toggle("invalido", !titulo);
     if(!titulo){ toast("Informe o título.", "erro"); return; }
-    api.cmsAtualizarManual(m.id, titulo, fundo.querySelector("#em-categoria").value).then(atual => {
-      substituirManual(estado, atual); pintarTabelaManuais(estado); fechar(); toast("Manual atualizado.", "ok");
-    }).catch(err => toast(err.message, "erro"));
+    const caixas = fundo.querySelectorAll("#em-pecas input[type=checkbox]");
+    const pecaIds = Array.from(caixas).filter(c => c.checked).map(c => c.value);
+    const mudouPecas = caixas.length && (pecaIds.length !== ligadas.size || pecaIds.some(id => !ligadas.has(id)));
+    api.cmsAtualizarManual(m.id, titulo, fundo.querySelector("#em-categoria").value)
+      .then(atual => mudouPecas ? api.cmsDefinirPecasManual(m.id, pecaIds) : atual)
+      .then(atual => { substituirManual(estado, atual); pintarTabelaManuais(estado); fechar(); toast("Manual atualizado.", "ok"); })
+      .catch(err => toast(err.message, "erro"));
   });
 }
 

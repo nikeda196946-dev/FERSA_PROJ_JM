@@ -64,9 +64,6 @@ const api = {
   problemasDaPeca(peca){
     return (peca.problemas || []).map(id => PROBLEMAS_POR_ID[id]).filter(Boolean);
   },
-  manualDaPeca(peca){
-    return MANUAIS[peca.manualId] || null;
-  },
 
   /* ---------------- Consultas recentes (por sessão do navegador) ---------------- */
   registrarConsultaRecente(peca){
@@ -210,8 +207,9 @@ async function validarConfigSupabase(){
    sessão acabou de verdade e a pessoa volta para o login. */
 async function renovarSessao(){
   const sessao = Sessao.atual();
-  if(!sessao?.refreshToken || !FERSA_CONFIG.supabaseUrl) return false;
+  if(!sessao?.refreshToken) return false;
   try{
+    await validarConfigSupabase(); // depois de um F5 a URL do Supabase ainda não foi carregada
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
       body: JSON.stringify({ refresh_token: sessao.refreshToken })
@@ -345,7 +343,7 @@ Object.assign(api, {
      trigger de database/cadastro.sql. Com a confirmação de e-mail ligada no
      Supabase, a resposta não traz sessão: a pessoa confirma e depois entra. */
   async cadastrar(nome, email, senha){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/signup`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
       body: JSON.stringify({ email: (email || "").trim(), password: senha, data: { nome: (nome || "").trim() } })
@@ -396,17 +394,17 @@ Object.assign(api, {
   async perguntarIA(pergunta, peca){
     const texto = (pergunta || "").trim();
     if(!texto) throw new Error("Digite uma pergunta.");
-    // Os manuais citam o Part Number; pôr a peça na pergunta ajuda a busca vetorial.
-    const enviada = peca ? `Sobre a peça ${peca.partNumber} (${peca.nome}): ${texto}` : texto;
-    const r = await requisicaoBackend("/api/chat", { method: "POST", body: JSON.stringify({ pergunta: enviada }) });
+    // Com a peça, o backend busca primeiro nos manuais ligados a ela (e põe o Part Number na pergunta).
+    const r = await requisicaoBackend("/api/chat", { method: "POST", body: JSON.stringify({ pergunta: texto, pecaId: peca ? peca.id : null }) });
     return {
       id: "consulta-" + Date.now(),
       pergunta: texto,
-      pecaContexto: peca ? peca.partNumber : null,
       pecaRelacionadaId: peca ? peca.id : null,
       encontrouConteudo: r.encontrou,
       resposta: r.resposta,
       modelo: r.modelo,
+      pecaContexto: r.pecaContexto || null,
+      buscaNaPeca: !!r.buscaNaPeca,
       sugestoesPeca: [],
       fontes: (r.fontes || []).map(f => ({
         numero: f.numero,
@@ -422,10 +420,11 @@ Object.assign(api, {
   },
 
   /* ---------------- Manuais (área pública) ---------------- */
-  async listarManuaisPublicos(termo, categoriaId){
+  async listarManuaisPublicos(termo, categoriaId, pecaId){
     const qs = new URLSearchParams();
     if(termo) qs.set("termo", termo);
     if(categoriaId) qs.set("categoriaId", categoriaId);
+    if(pecaId) qs.set("pecaId", pecaId);
     return requisicaoBackend(`/api/manuais${qs.size ? `?${qs}` : ""}`);
   },
   async listarCategoriasPublicas(){ return requisicaoBackend("/api/categorias"); },
@@ -449,6 +448,10 @@ Object.assign(api, {
   },
   async cmsReprocessarManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}/reprocessar`, { method: "POST" }); },
   async cmsExcluirManual(id){ return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  async cmsDefinirPecasManual(id, pecaIds){
+    return requisicaoBackend(`/api/admin/manuais/${encodeURIComponent(id)}/pecas`, { method: "PUT", body: JSON.stringify({ pecaIds }) });
+  },
+  async cmsDetectarPecas(){ return requisicaoBackend("/api/admin/manuais/detectar-pecas", { method: "POST" }); },
   async cmsAbrirPdfManual(id){ return abrirPdfProtegido(`/api/admin/manuais/${encodeURIComponent(id)}/pdf`); },
 
   /* ---------------- CMS: importação do SharePoint (só ADMIN) ---------------- */

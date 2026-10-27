@@ -306,51 +306,27 @@ rota("/peca/:id/problemas", (params) => {
   });
 }, ["MECANICO"]);
 
-/* ---------------- Manual completo (leitor) ---------------- */
+/* ---------------- Manuais da peça (reais: ligados pelo Part Number) ---------------- */
 rota("/peca/:id/manual", (params) => {
   carregarPeca(params.id, (peca) => {
-    const manual = api.manualDaPeca(peca);
-    if(!manual){
-      montarConteudo(`<div class="conteudo">${miniCabecalho(peca, "manual")}${estadoVazio({ titulo: "Manual não disponível", texto: "Este manual ainda não foi cadastrado no sistema." })}</div>`);
-      return;
-    }
-    montarConteudo(`
-      <div class="conteudo">
-        ${miniCabecalho(peca, "manual")}
-        <div class="doc-cab">
-          <div>
-            <strong>${esc(manual.titulo)}</strong>
-            <small>${esc(manual.versao)} · Atualizado em ${esc(manual.atualizadoEm)} · Origem: ${esc(manual.origem)}</small>
-          </div>
-          <button class="btn-secundario btn-pequeno" id="btn-abrir-original">Abrir no SharePoint (simulado)</button>
-        </div>
-        <div class="manual-grade">
-          <nav class="manual-indice">
-            ${manual.secoes.map(s => `<a href="#sec-${s.id}" data-sec="${s.id}">${esc(s.titulo)}</a>`).join("")}
-          </nav>
-          <div>
-            ${manual.secoes.map(s => `
-              <section class="manual-secao" id="sec-${s.id}">
-                <h3>${esc(s.titulo)}</h3>
-                ${s.texto ? `<p>${esc(s.texto)}</p>` : ""}
-                ${s.lista ? `<ul>${s.lista.map(li => `<li>${esc(li)}</li>`).join("")}</ul>` : ""}
-              </section>`).join("")}
-          </div>
-        </div>
-      </div>`);
-
-    document.getElementById("btn-abrir-original").addEventListener("click", () => {
-      toast("No sistema final, este botão abrirá o documento original no SharePoint.", "ok");
+    montarConteudo(`<div class="conteudo">${miniCabecalho(peca, "manual")}${estadoCarregando("Buscando os manuais desta peça…")}</div>`);
+    api.listarManuaisPublicos(null, null, peca.id).then(manuais => {
+      montarConteudo(`
+        <div class="conteudo">
+          ${miniCabecalho(peca, "manual")}
+          <p style="margin:0 0 14px;">Manuais que tratam do <strong>${esc(peca.partNumber)}</strong> — ligados automaticamente quando o código aparece no manual, ou pelo administrador.</p>
+          ${manuais.length ? `<div class="lista-resultados">${manuais.map(cardManual).join("")}</div>`
+            : estadoVazio({ titulo: "Nenhum manual ligado a esta peça", texto: "Ainda não há manual que cite este Part Number. Você pode procurar entre todos os manuais ou perguntar à IA.",
+                acaoHtml: `<a class="btn-secundario" href="#/manuais?q=${encodeURIComponent(peca.partNumber)}">Procurar nos manuais</a>` })}
+          <a class="card-ia" href="#/ia?peca=${encodeURIComponent(peca.id)}" style="margin-top:20px;">
+            ${ICONES.ia}
+            <div><strong>Perguntar à IA sobre o ${esc(peca.partNumber)}</strong><p>A busca começa pelos manuais desta peça, para não misturar com outras.</p></div>
+            ${ICONES.seta}
+          </a>
+        </div>`);
+    }).catch(err => {
+      montarConteudo(`<div class="conteudo">${miniCabecalho(peca, "manual")}${estadoErro({ titulo: "Não foi possível carregar os manuais", texto: err.message })}</div>`);
     });
-    const links = document.querySelectorAll(".manual-indice a");
-    links.forEach(a => a.addEventListener("click", (e) => {
-      e.preventDefault();
-      const alvo = document.getElementById("sec-" + a.getAttribute("data-sec"));
-      alvo.scrollIntoView({ behavior: "smooth", block: "start" });
-      links.forEach(x => x.classList.remove("ativo"));
-      a.classList.add("ativo");
-    }));
-    if(links[0]) links[0].classList.add("ativo");
   });
 }, ["MECANICO"]);
 

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fersacare.api.ia.GeminiClient;
+import com.fersacare.api.catalogo.repository.PecaRepository;
 import com.fersacare.api.ia.IaIndisponivelException;
+import com.fersacare.api.manuais.repository.ManualPecaRepository;
 import com.fersacare.api.manuais.repository.ManualChunkRepository;
 import com.fersacare.api.manuais.repository.ManualChunkRepository.TrechoEncontrado;
 import com.fersacare.api.rag.dto.ChatResponse;
@@ -19,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * O RAG em si (ver docs/FERSA_Care_Como_a_IA_recebe_contexto_RAG.docx):
@@ -112,6 +115,8 @@ public class ChatService {
 
     private final GeminiClient gemini;
     private final ManualChunkRepository chunkRepository;
+    private final ManualPecaRepository manualPecaRepository;
+    private final PecaRepository pecaRepository;
     private final ObjectMapper json;
     private final int topK;
     private final double scoreMinimo;
@@ -119,31 +124,62 @@ public class ChatService {
     public ChatService(
         GeminiClient gemini,
         ManualChunkRepository chunkRepository,
+        ManualPecaRepository manualPecaRepository,
+        PecaRepository pecaRepository,
         ObjectMapper json,
         @Value("${fersa.rag.top-k}") int topK,
         @Value("${fersa.rag.score-minimo}") double scoreMinimo
     ) {
         this.gemini = gemini;
         this.chunkRepository = chunkRepository;
+        this.manualPecaRepository = manualPecaRepository;
+        this.pecaRepository = pecaRepository;
         this.json = json;
         this.topK = topK;
         this.scoreMinimo = scoreMinimo;
     }
 
     public ChatResponse perguntar(String pergunta) {
+        return perguntar(pergunta, null);
+    }
+
+    /**
+     * Com peça escolhida, a pergunta ganha o Part Number (ajuda o embedding)
+     * e a busca vai primeiro só nos manuais ligados àquela peça — assim o
+     * torque do FRS-1001 não se mistura com o do FRS-1003. Se a peça não tem
+     * manual ligado, ou nada relevante aparece neles, busca em todos.
+     */
+    public ChatResponse perguntar(String pergunta, UUID pecaId) {
         String p = pergunta.strip();
+        String pecaContexto = null;
+        List<UUID> manuaisDaPeca = List.of();
+        if (pecaId != null) {
+            var peca = pecaRepository.buscarResumoPorId(pecaId).orElse(null);
+            if (peca != null) {
+                pecaContexto = peca.partNumber();
+                p = "Sobre a peça " + peca.partNumber() + " (" + peca.nome() + "): " + p;
+                manuaisDaPeca = manualPecaRepository.manuaisDaPeca(pecaId);
+            }
+        }
+
         float[] vetor = gemini.embedPergunta(p);
-        List<TrechoEncontrado> trechos = chunkRepository.buscarSimilares(vetor, topK, scoreMinimo);
+        List<TrechoEncontrado> trechos = manuaisDaPeca.isEmpty()
+            ? List.of() : chunkRepository.buscarSimilares(vetor, topK, scoreMinimo, manuaisDaPeca);
+        boolean buscaNaPeca = !trechos.isEmpty();
         if (trechos.isEmpty()) {
-            return semInformacao(gemini.modeloChat());
+            trechos = chunkRepository.buscarSimilares(vetor, topK, scoreMinimo);
+        }
+        if (trechos.isEmpty()) {
+            return semInformacao(gemini.modeloChat(), pecaContexto);
         }
 
         GeminiClient.Geracao geracao = gemini.gerar(INSTRUCAO_SISTEMA, montarMensagem(p, trechos), ESQUEMA_RESPOSTA);
         RespostaEstruturada r = ler(geracao.texto());
         if (!Boolean.TRUE.equals(r.temInformacaoSuficiente()) || r.resposta() == null || r.resposta().isBlank()) {
-            return semInformacao(geracao.modelo());
+            return semInformacao(geracao.modelo(), pecaContexto);
         }
-        return new ChatResponse(r.resposta().strip(), true, fontesUtilizadas(r.chunksUtilizados(), trechos), geracao.modelo());
+        return new ChatResponse(r.resposta().strip(), true, fontesUtilizadas(r.chunksUtilizados(), trechos), geracao.modelo(),
+            pecaContexto, buscaNaPeca);
     }
 
     static String montarMensagem(String pergunta, List<TrechoEncontrado> trechos) {
@@ -198,8 +234,8 @@ public class ChatService {
         }
     }
 
-    private static ChatResponse semInformacao(String modelo) {
-        return new ChatResponse(MENSAGEM_SEM_INFORMACAO, false, List.of(), modelo);
+    private static ChatResponse semInformacao(String modelo, String pecaContexto) {
+        return new ChatResponse(MENSAGEM_SEM_INFORMACAO, false, List.of(), modelo, pecaContexto, false);
     }
 
     private static String resumir(String texto) {

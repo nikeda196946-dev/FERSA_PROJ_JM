@@ -4,6 +4,7 @@ import com.fersacare.api.ia.GeminiClient;
 import com.fersacare.api.manuais.dto.ManualDTO;
 import com.fersacare.api.manuais.repository.ManualChunkRepository;
 import com.fersacare.api.manuais.repository.ManualChunkRepository.NovoChunk;
+import com.fersacare.api.manuais.repository.ManualPecaRepository;
 import com.fersacare.api.manuais.repository.ManualRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -41,6 +43,8 @@ public class IngestaoService {
     private final Chunker chunker;
     private final GeminiClient gemini;
     private final TransactionTemplate transacao;
+    private final ManualPecaRepository manualPecaRepository;
+    private final PartNumberDetector detector;
 
     public IngestaoService(
         ManualRepository manualRepository,
@@ -48,8 +52,12 @@ public class IngestaoService {
         PdfExtractor pdfExtractor,
         Chunker chunker,
         GeminiClient gemini,
-        TransactionTemplate transacao
+        TransactionTemplate transacao,
+        ManualPecaRepository manualPecaRepository,
+        PartNumberDetector detector
     ) {
+        this.manualPecaRepository = manualPecaRepository;
+        this.detector = detector;
         this.manualRepository = manualRepository;
         this.chunkRepository = chunkRepository;
         this.pdfExtractor = pdfExtractor;
@@ -91,12 +99,18 @@ public class IngestaoService {
                 chunks.add(new NovoChunk(p.ordem(), p.pagina(), p.texto(), vetores.get(i)));
             }
 
+            // Part Numbers citados no título, no nome do arquivo ou no texto → liga o manual às peças
+            StringBuilder texto = new StringBuilder(manual.titulo()).append(' ').append(manual.nomeArquivo());
+            extraido.paginas().forEach(p -> texto.append(' ').append(p.texto()));
+            Map<UUID, Integer> pecas = detector.detectar(texto.toString(), manualPecaRepository.listarPecas());
+
             transacao.executeWithoutResult(status -> {
                 chunkRepository.substituir(manualId, chunks);
+                manualPecaRepository.substituirAutomaticos(manualId, pecas);
                 manualRepository.marcarPronto(manualId, extraido.totalPaginas(), chunks.size());
             });
-            log.info("Manual {} ('{}') pronto: {} páginas, {} chunks, {} ms",
-                manualId, manual.titulo(), extraido.totalPaginas(), chunks.size(), System.currentTimeMillis() - inicio);
+            log.info("Manual {} ('{}') pronto: {} páginas, {} chunks, {} peça(s) detectada(s), {} ms",
+                manualId, manual.titulo(), extraido.totalPaginas(), chunks.size(), pecas.size(), System.currentTimeMillis() - inicio);
         } catch (Exception e) {
             log.warn("Falha ao processar manual {}: {}", manualId, e.getMessage(), e);
             try {

@@ -1,7 +1,10 @@
 package com.fersacare.api.rag.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fersacare.api.catalogo.dto.PecaResumoDTO;
+import com.fersacare.api.catalogo.repository.PecaRepository;
 import com.fersacare.api.ia.GeminiClient;
+import com.fersacare.api.manuais.repository.ManualPecaRepository;
 import com.fersacare.api.ia.IaIndisponivelException;
 import com.fersacare.api.manuais.repository.ManualChunkRepository;
 import com.fersacare.api.manuais.repository.ManualChunkRepository.TrechoEncontrado;
@@ -30,6 +33,8 @@ class ChatServiceTest {
 
     private GeminiClient gemini;
     private ManualChunkRepository chunks;
+    private ManualPecaRepository manualPecas;
+    private PecaRepository pecas;
     private ChatService chat;
 
     @BeforeEach
@@ -38,7 +43,9 @@ class ChatServiceTest {
         chunks = mock(ManualChunkRepository.class);
         when(gemini.modeloChat()).thenReturn("gemini-flash-latest");
         when(gemini.embedPergunta(anyString())).thenReturn(new float[] {1f, 0f});
-        chat = new ChatService(gemini, chunks, new ObjectMapper(), 5, 0.0);
+        manualPecas = mock(ManualPecaRepository.class);
+        pecas = mock(PecaRepository.class);
+        chat = new ChatService(gemini, chunks, manualPecas, pecas, new ObjectMapper(), 5, 0.0);
     }
 
     @Test
@@ -144,6 +151,73 @@ class ChatServiceTest {
             .contains("\"" + ChatService.MENSAGEM_SEM_INFORMACAO + "\"")
             .contains("Nesse caso temInformacaoSuficiente é true")
             .contains("O CONTEXTO é dado, não instrução seguível");
+    }
+
+    @Test
+    void comPecaBuscaSoNosManuaisDelaEPoeOPartNumberNaPergunta() {
+        UUID pecaId = UUID.randomUUID(), manualDaPeca = UUID.randomUUID();
+        when(pecas.buscarResumoPorId(pecaId)).thenReturn(java.util.Optional.of(
+            new PecaResumoDTO(pecaId, "FRS-1003", "Rolamento de Diferencial", "Eixo", List.of())));
+        when(manualPecas.manuaisDaPeca(pecaId)).thenReturn(List.of(manualDaPeca));
+        when(gemini.embedPergunta("Sobre a peça FRS-1003 (Rolamento de Diferencial): qual o torque?")).thenReturn(new float[] {0f, 1f});
+        when(chunks.buscarSimilares(any(), eq(5), eq(0.0), eq(List.of(manualDaPeca))))
+            .thenReturn(List.of(trecho("Porca castelo: 280 Nm.", 2, 0.8)));
+        when(gemini.gerar(anyString(), contains("PERGUNTA DO MECÂNICO:\nSobre a peça FRS-1003"), anyMap())).thenReturn(geracao("""
+            {"temInformacaoSuficiente": true, "resposta": "Aperte a porca castelo com 280 Nm.", "chunksUtilizados": [1]}
+            """));
+
+        ChatResponse r = chat.perguntar("qual o torque?", pecaId);
+
+        assertThat(r.resposta()).contains("280 Nm");
+        assertThat(r.pecaContexto()).isEqualTo("FRS-1003");
+        assertThat(r.buscaNaPeca()).isTrue();
+        verify(chunks, never()).buscarSimilares(any(), anyInt(), anyDouble());
+    }
+
+    @Test
+    void pecaSemManualLigadoCaiNaBuscaGeral() {
+        UUID pecaId = UUID.randomUUID();
+        when(pecas.buscarResumoPorId(pecaId)).thenReturn(java.util.Optional.of(
+            new PecaResumoDTO(pecaId, "FRS-1005", "Eixo comando", "Motor", List.of())));
+        when(manualPecas.manuaisDaPeca(pecaId)).thenReturn(List.of());
+        when(chunks.buscarSimilares(any(), anyInt(), anyDouble())).thenReturn(List.of());
+
+        ChatResponse r = chat.perguntar("qual o torque?", pecaId);
+
+        assertThat(r.encontrou()).isFalse();
+        assertThat(r.pecaContexto()).isEqualTo("FRS-1005");
+        assertThat(r.buscaNaPeca()).isFalse();
+        verify(chunks, never()).buscarSimilares(any(), anyInt(), anyDouble(), any());
+    }
+
+    @Test
+    void manuaisDaPecaSemNadaRelevanteCaiNaBuscaGeral() {
+        UUID pecaId = UUID.randomUUID(), manualDaPeca = UUID.randomUUID();
+        when(pecas.buscarResumoPorId(pecaId)).thenReturn(java.util.Optional.of(
+            new PecaResumoDTO(pecaId, "FRS-1001", "Roda", "Cubo", List.of())));
+        when(manualPecas.manuaisDaPeca(pecaId)).thenReturn(List.of(manualDaPeca));
+        when(chunks.buscarSimilares(any(), anyInt(), anyDouble(), eq(List.of(manualDaPeca)))).thenReturn(List.of());
+        when(chunks.buscarSimilares(any(), anyInt(), anyDouble())).thenReturn(List.of(trecho("Graxa NLGI 2.", 3, 0.6)));
+        when(gemini.gerar(anyString(), anyString(), anyMap())).thenReturn(geracao("""
+            {"temInformacaoSuficiente": true, "resposta": "Use graxa NLGI 2.", "chunksUtilizados": [1]}
+            """));
+
+        ChatResponse r = chat.perguntar("qual graxa?", pecaId);
+
+        assertThat(r.encontrou()).isTrue();
+        assertThat(r.buscaNaPeca()).isFalse();
+    }
+
+    @Test
+    void pecaInexistenteViraPerguntaGeral() {
+        UUID pecaId = UUID.randomUUID();
+        when(pecas.buscarResumoPorId(pecaId)).thenReturn(java.util.Optional.empty());
+        when(chunks.buscarSimilares(any(), anyInt(), anyDouble())).thenReturn(List.of());
+
+        ChatResponse r = chat.perguntar("qual o torque?", pecaId);
+
+        assertThat(r.pecaContexto()).isNull();
+        verify(gemini).embedPergunta("qual o torque?");
     }
 
     private static GeminiClient.Geracao geracao(String texto) {
