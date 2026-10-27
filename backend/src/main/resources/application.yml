@@ -28,6 +28,9 @@ management:
 # automaticamente; é o nosso SecurityConfig que injeta estes valores.
 fersa:
   supabase:
+    url: ${SUPABASE_URL:https://ckyxeffcseqghsqfnkes.supabase.co}
+    anon-key: ${SUPABASE_ANON_KEY:}
+    jwt-secret: ${SUPABASE_JWT_SECRET:}
     # JWKS do projeto Supabase: https://<project-ref>.supabase.co/auth/v1/jwks
     jwks-url: ${SUPABASE_JWKS_URL}
     # Emissor esperado no token: https://<project-ref>.supabase.co/auth/v1

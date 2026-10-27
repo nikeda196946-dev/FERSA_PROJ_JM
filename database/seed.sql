@@ -217,15 +217,5 @@ insert into documentos (titulo, tipo, peca_id, origem, status, versao, conteudo_
    ' Lubrificação: lubrificado pela circulação do óleo do motor; sem aplicação manual.' ||
    ' Diagnóstico: ruído indica montagem com apoio incorreto ou eixo riscado.');
 
--- =====================================================================
--- Usuários de teste — rode depois de criar as contas no Supabase Auth
--- (Dashboard → Authentication → Add user, ou API Admin createUser).
--- Troque os UUIDs abaixo pelos ids reais gerados para cada conta.
--- =====================================================================
--- insert into clientes (id, nome) values
---   ('50000000-0000-0000-0000-000000000001', 'Oficina Trevo Diesel');
---
--- insert into profiles (id, nome, perfil, cliente_id) values
---   ('<uuid do usuário mecanico@oficina.com>', 'Carlos Mendes', 'MECANICO', '50000000-0000-0000-0000-000000000001'),
---   ('<uuid do usuário tecnico@fersa.com>',   'Renata Souza',  'TECNICO',  null),
---   ('<uuid do usuário admin@fersa.com>',     'Paulo Ferreira','ADMIN',    null);
+-- Usuários de teste: crie as contas em Supabase Authentication e depois
+-- execute database/test-users.sql para vincular os perfis pelo e-mail.

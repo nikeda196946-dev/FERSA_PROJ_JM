@@ -25,9 +25,27 @@ No SQL Editor do seu projeto Supabase, nesta ordem:
 > Authentication → Sign In / Providers → Email → desligue "Confirm email".
 > Com a confirmação ligada, a tela avisa que o e-mail foi enviado.
 
-O final do `seed.sql` tem um bloco comentado para ligar os usuários de
-teste (mecânico/técnico/admin) depois de criá-los em
-**Authentication → Add user** no painel do Supabase.
+## Usuários de teste
+
+1. No Supabase, abra **Authentication → Users → Add user** e crie estas
+   contas com **Auto Confirm User** marcado:
+
+   | E-mail | Nome | Perfil |
+   |---|---|---|
+   | `mecanico@oficina.com` | Carlos Mendes | MECANICO |
+   | `tecnico@fersa.com` | Renata Souza | TECNICO |
+   | `admin@fersa.com` | Paulo Ferreira | ADMIN |
+
+2. Escolha uma senha de teste para as contas (por exemplo,
+   `FersaTeste2026!`; não reutilize em produção).
+3. No **SQL Editor**, execute `test-users.sql`. Ele liga os perfis às
+   contas Auth pelo e-mail e mostra o resultado da criação. As contas
+   precisam existir antes de rodar o arquivo.
+4. Entre pela tela do sistema com um desses e-mails e a senha definida.
+
+O CMS de usuários ainda é demonstrativo e não cria contas reais. O login
+é feito pelo Supabase Auth; `test-users.sql` só cria/atualiza os perfis
+de domínio necessários para o backend reconhecer cada usuário.
 
 ## Validado contra um Postgres real
 
