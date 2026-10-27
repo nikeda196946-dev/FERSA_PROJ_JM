@@ -276,7 +276,8 @@ public class ManualService {
 
     static String tituloPadrao(String nomeArquivo) {
         String semExtensao = nomeArquivo.replaceFirst("(?i)\\.pdf$", "");
-        String titulo = semExtensao.replaceAll("[_-]+", " ").strip();
+        // "_" vira espaço; hífen fica (é parte do Part Number: "FRS-1001 - Manual de montagem")
+        String titulo = semExtensao.replace('_', ' ').replaceAll("\\s+", " ").strip();
         return titulo.isEmpty() ? "Manual sem título" : titulo;
     }
 

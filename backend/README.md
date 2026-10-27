@@ -400,6 +400,9 @@ um **app registrado no Entra ID** (sem usuário, "client credentials") e só
   `SHAREPOINT_CATEGORIA_PELA_PASTA=true` cada subpasta vira uma categoria no
   CMS. PDFs direto em `Manuais/` usam a categoria escolhida na tela.
 - PDFs com texto selecionável (escaneado não funciona), até 25 MB.
+- Para testar sem documentos reais, use o pacote de manuais fictícios em
+  `docs/manuais-ficticios` (pastas já separadas por categoria, gabarito e
+  script das 10 perguntas de teste).
 
 ### 3. Configurar e usar
 

@@ -17,7 +17,9 @@ fersa-care/
 ├── web/        → HTML/CSS/JS puro (sem build step)
 ├── backend/    → API REST, Java 21 + Spring Boot 3
 ├── database/   → schema.sql e seed.sql (Supabase/Postgres + pgvector)
-└── docs/       → relatório de evolução do projeto
+├── docs/       → relatório de evolução do projeto e manuais fictícios
+│                 para o SharePoint de teste (docs/manuais-ficticios)
+└── scripts/    → testar-ia.mjs (roda as 10 perguntas de teste da IA)
 ```
 
 Cada pasta tem o próprio README com detalhes; este arquivo é só o mapa.
@@ -76,7 +78,9 @@ Auth; a API só valida o token recebido e decide o que cada perfil
 1. Registrar o app no Entra ID e testar a importação com o SharePoint real
    (a integração já existe — passo a passo em `backend/README.md`, seção
    "Conectar ao SharePoint").
-2. Semana 4: 10 perguntas de teste, prints no README, slides e ensaio da demo.
+2. Semana 4: prints no README, slides e ensaio da demo. As 10 perguntas de
+   teste já estão prontas: manuais fictícios para o SharePoint de teste,
+   gabarito e `node scripts/testar-ia.mjs` (ver `docs/manuais-ficticios`).
 3. CMS de escrita do catálogo de peças no backend.
 4. Aplicativo Android, consumindo a mesma API.
 
