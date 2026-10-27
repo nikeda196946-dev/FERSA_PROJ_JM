@@ -62,7 +62,8 @@ public class ManualRepository {
         rs.getString("sharepoint_web_url"),
         rs.getString("sharepoint_caminho"),
         rs.getTimestamp("criado_em").toInstant(),
-        rs.getTimestamp("atualizado_em").toInstant()
+        rs.getTimestamp("atualizado_em").toInstant(),
+        List.of() // as peças são preenchidas pelo ManualService (ManualPecaRepository)
     );
 
     public UUID inserir(String titulo, UUID categoriaId, String nomeArquivo, byte[] pdf, String hashSha256) {
@@ -179,10 +180,17 @@ public class ManualRepository {
      * texto do manual. strpos em vez de LIKE para não precisar escapar % e _
      * digitados pelo usuário.
      */
-    public List<ManualDTO> listarPublicos(String termo, UUID categoriaId) {
+    public List<ManualDTO> listarPublicos(String termo, UUID categoriaId, UUID pecaId) {
         String sql = SELECT_BASE + " where " + FILTRO_PUBLICO + """
               and (cast(:categoriaId as uuid) is null or m.categoria_id = cast(:categoriaId as uuid))
+              and (cast(:pecaId as uuid) is null or exists (
+                     select 1 from manual_peca mp
+                     where mp.manual_id = m.id and mp.peca_id = cast(:pecaId as uuid) and mp.origem <> 'removido'))
               and (:termo = ''
+                   or exists (select 1 from manual_peca mp join pecas p on p.id = mp.peca_id
+                              where mp.manual_id = m.id and mp.origem <> 'removido'
+                                and strpos(regexp_replace(lower(p.part_number), '[^a-z0-9]', '', 'g'), :termoPn) > 0
+                                and :termoPn <> '')
                    or strpos(lower(m.titulo), :termo) > 0
                    or strpos(lower(m.nome_arquivo), :termo) > 0
                    or strpos(lower(coalesce(c.nome, '')), :termo) > 0
@@ -192,7 +200,9 @@ public class ManualRepository {
             """;
         return jdbc.query(sql, new MapSqlParameterSource()
             .addValue("termo", termo == null ? "" : termo.strip().toLowerCase())
-            .addValue("categoriaId", categoriaId, Types.OTHER), MAPPER);
+            .addValue("termoPn", termo == null ? "" : termo.toLowerCase().replaceAll("[^a-z0-9]", ""))
+            .addValue("categoriaId", categoriaId, Types.OTHER)
+            .addValue("pecaId", pecaId, Types.OTHER), MAPPER);
     }
 
     public Optional<ManualDTO> buscarPublicoPorId(UUID id) {

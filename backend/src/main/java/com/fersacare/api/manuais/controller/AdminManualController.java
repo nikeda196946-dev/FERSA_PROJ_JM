@@ -77,6 +77,20 @@ public class AdminManualController {
         return manualService.listarChunks(id);
     }
 
+    /** Peças (Part Numbers) do manual: o conjunto final escolhido pelo admin. */
+    @PutMapping("/{id}/pecas")
+    public ManualDTO definirPecas(@PathVariable UUID id, @RequestBody DefinirPecasRequest req) {
+        return manualService.definirPecas(id, req.pecaIds());
+    }
+
+    /** Refaz a detecção automática de Part Numbers em todos os manuais prontos (sem reprocessar). */
+    @PostMapping("/detectar-pecas")
+    public java.util.Map<String, Integer> detectarPecas() {
+        return manualService.detectarPecasEmTodos();
+    }
+
+    public record DefinirPecasRequest(List<UUID> pecaIds) {}
+
     @PutMapping("/{id}")
     public ManualDTO atualizar(@PathVariable UUID id, @Valid @RequestBody AtualizarManualRequest req) {
         return manualService.atualizar(id, req);

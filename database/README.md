@@ -13,8 +13,9 @@ No SQL Editor do seu projeto Supabase, nesta ordem:
    com aplicações, ferramentas, problemas, lubrificação, passos e vídeos.
 3. `manuais.sql` — sistema de manuais com RAG: tabelas `categoria`,
    `manual` (com `status` processando/pronto/erro e `ativo`) e
-   `manual_chunk` (texto + `embedding vector(768)` com índice HNSW), RLS
-   ligado. Pode ser rodado de novo sem erro.
+   `manual_chunk` (texto + `embedding vector(768)` com índice HNSW) e
+   `manual_peca` (qual manual trata de qual peça/Part Number), RLS ligado.
+   Pode ser rodado de novo sem erro.
 4. `cadastro.sql` — trigger que cria a linha em `profiles` (sempre como
    MECANICO) para quem se cadastra pela tela "Criar conta". Sem ele, a
    conta é criada no Supabase Auth mas não consegue entrar no FERSA Care.

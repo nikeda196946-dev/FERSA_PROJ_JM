@@ -5,11 +5,14 @@ import com.fersacare.api.common.RequisicaoInvalidaException;
 import com.fersacare.api.manuais.dto.AtualizarManualRequest;
 import com.fersacare.api.manuais.dto.ManualChunkDTO;
 import com.fersacare.api.manuais.dto.ManualDTO;
+import com.fersacare.api.manuais.dto.PecaVinculadaDTO;
+import com.fersacare.api.manuais.repository.ManualPecaRepository;
 import com.fersacare.api.manuais.repository.CategoriaRepository;
 import com.fersacare.api.manuais.repository.ManualChunkRepository;
 import com.fersacare.api.manuais.repository.ManualRepository;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,7 +20,10 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -34,17 +40,26 @@ public class ManualService {
     private final ManualChunkRepository chunkRepository;
     private final CategoriaRepository categoriaRepository;
     private final IngestaoService ingestaoService;
+    private final ManualPecaRepository manualPecaRepository;
+    private final PartNumberDetector detector;
+    private final TransactionTemplate transacao;
 
     public ManualService(
         ManualRepository manualRepository,
         ManualChunkRepository chunkRepository,
         CategoriaRepository categoriaRepository,
-        IngestaoService ingestaoService
+        IngestaoService ingestaoService,
+        ManualPecaRepository manualPecaRepository,
+        PartNumberDetector detector,
+        TransactionTemplate transacao
     ) {
         this.manualRepository = manualRepository;
         this.chunkRepository = chunkRepository;
         this.categoriaRepository = categoriaRepository;
         this.ingestaoService = ingestaoService;
+        this.manualPecaRepository = manualPecaRepository;
+        this.detector = detector;
+        this.transacao = transacao;
     }
 
     public ManualDTO enviar(MultipartFile arquivo, String titulo, UUID categoriaId) {
@@ -145,12 +160,49 @@ public class ManualService {
     }
 
     public List<ManualDTO> listarTodos() {
-        return manualRepository.listarTodos();
+        return comPecas(manualRepository.listarTodos());
     }
 
     public ManualDTO buscar(UUID id) {
-        return manualRepository.buscarPorId(id)
-            .orElseThrow(() -> new RecursoNaoEncontradoException("Manual não encontrado."));
+        return comPecas(List.of(manualRepository.buscarPorId(id)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Manual não encontrado.")))).get(0);
+    }
+
+    // ----- peças (Part Numbers) do manual -----
+
+    /** O admin escolhe exatamente as peças do manual (marcadas ficam, desmarcadas saem e não voltam sozinhas). */
+    public ManualDTO definirPecas(UUID id, List<UUID> pecaIds) {
+        buscar(id);
+        Set<UUID> escolhidas = new LinkedHashSet<>(pecaIds == null ? List.of() : pecaIds);
+        Set<UUID> existentes = manualPecaRepository.listarPecas().stream().map(PartNumberDetector.Peca::id)
+            .collect(java.util.stream.Collectors.toSet());
+        if (!existentes.containsAll(escolhidas)) {
+            throw new RequisicaoInvalidaException("Uma ou mais peças não existem no catálogo.");
+        }
+        transacao.executeWithoutResult(s -> manualPecaRepository.definirVinculos(id, escolhidas));
+        return buscar(id);
+    }
+
+    /**
+     * Refaz a detecção de Part Numbers em todos os manuais prontos, usando o
+     * texto já indexado (não chama o Gemini). Para manuais antigos e para
+     * quando peças novas entram no catálogo.
+     */
+    public Map<String, Integer> detectarPecasEmTodos() {
+        List<PartNumberDetector.Peca> pecas = manualPecaRepository.listarPecas();
+        int manuais = 0, vinculos = 0;
+        for (ManualPecaRepository.TextoManual t : manualPecaRepository.textosDosManuaisProntos()) {
+            Map<UUID, Integer> achadas = detector.detectar(t.texto(), pecas);
+            transacao.executeWithoutResult(s -> manualPecaRepository.substituirAutomaticos(t.manualId(), achadas));
+            manuais++;
+            vinculos += achadas.size();
+        }
+        return Map.of("manuais", manuais, "vinculos", vinculos);
+    }
+
+    private List<ManualDTO> comPecas(List<ManualDTO> manuais) {
+        Map<UUID, List<PecaVinculadaDTO>> pecas = manualPecaRepository.listarPorManuais(manuais.stream().map(ManualDTO::id).toList());
+        return manuais.stream().map(m -> m.comPecas(pecas.get(m.id()))).toList();
     }
 
     public List<ManualChunkDTO> listarChunks(UUID id) {
@@ -196,8 +248,8 @@ public class ManualService {
 
     // ----- área pública -----
 
-    public List<ManualDTO> listarPublicos(String termo, UUID categoriaId) {
-        return manualRepository.listarPublicos(termo, categoriaId);
+    public List<ManualDTO> listarPublicos(String termo, UUID categoriaId, UUID pecaId) {
+        return comPecas(manualRepository.listarPublicos(termo, categoriaId, pecaId));
     }
 
     public ManualRepository.ArquivoPdf baixarPublico(UUID id) {

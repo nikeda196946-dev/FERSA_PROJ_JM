@@ -56,7 +56,7 @@ class SharePointServiceTest {
 
     private static ManualDTO manual(UUID id, String categoria) {
         return new ManualDTO(id, "titulo", null, categoria, "a.pdf", 5, null, 0, StatusManual.PROCESSANDO, null, true,
-            "sharepoint", "https://sp/x", "", Instant.now(), Instant.now());
+            "sharepoint", "https://sp/x", "", Instant.now(), Instant.now(), List.of());
     }
 
     @Test
@@ -137,7 +137,7 @@ class SharePointServiceTest {
         when(graph.listarPdfs(LOCAL)).thenReturn(List.of(arquivo("a", "a.pdf", "e", "Pasta Nova", 10)));
         when(manualRepository.listarVinculosSharePoint()).thenReturn(List.of());
         ManualDTO jaEnviado = new ManualDTO(existente, "Manual antigo", null, null, "a.pdf", 5, 1, 1, StatusManual.PRONTO, null,
-            true, "upload", null, null, Instant.now(), Instant.now());
+            true, "upload", null, null, Instant.now(), Instant.now(), List.of());
         when(manualService.buscarPorConteudo(PDF)).thenReturn(Optional.of(jaEnviado));
         when(manualRepository.vincularAoSharePoint(existente, "a", "e", "https://sp/a", "Pasta Nova")).thenReturn(true, false);
 

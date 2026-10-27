@@ -15,7 +15,7 @@ rota("/manuais", () => {
 
       <form id="form-manuais">
         <div class="barra-busca">
-          <input id="busca-manuais" type="text" placeholder="Ex: FRS-1001, graxa, folga axial…" autocomplete="off" value="${esc(termoInicial)}">
+          <input id="busca-manuais" type="text" placeholder="Part Number (ex: FRS-1001), título ou assunto (graxa, folga axial…)" autocomplete="off" value="${esc(termoInicial)}">
           <button type="submit">Buscar</button>
         </div>
       </form>
@@ -83,6 +83,12 @@ function ligarManuaisPublicos(){
   buscar();
 }
 
+/* Part Numbers das peças de que o manual trata (ligadas sozinhas pelo texto ou pelo admin). */
+function chipsPartNumber(pecas){
+  if(!pecas || !pecas.length) return "";
+  return `<span class="chips-pn">${pecas.map(p => `<span class="chip-pn" title="${esc(p.nome)}">${esc(p.partNumber)}</span>`).join("")}</span>`;
+}
+
 function cardManual(m){
   const meta = [m.totalPaginas ? `${m.totalPaginas} página${m.totalPaginas > 1 ? "s" : ""}` : null,
     `Atualizado em ${new Date(m.atualizadoEm).toLocaleDateString("pt-BR")}`].filter(Boolean).join(" · ");
@@ -92,10 +98,11 @@ function cardManual(m){
         <span class="pn">${esc(m.categoriaNome || "Manual")}</span>
         <span class="nome">${esc(m.titulo)}</span>
         <span class="meta">${esc(meta)}</span>
+        ${chipsPartNumber(m.pecas)}
       </div>
       <div class="acoes-card grupo-botoes">
         <a class="btn-principal btn-pequeno" href="${esc(urlPdfPublico(m.id))}" target="_blank" rel="noopener">${ICONES.documento} Abrir PDF</a>
-        <a class="btn-secundario btn-pequeno" href="#/ia?rascunho=${encodeURIComponent("Sobre o " + m.titulo + ": ")}">${ICONES.ia} Perguntar à IA</a>
+        <a class="btn-secundario btn-pequeno" href="#/ia?${m.pecas && m.pecas.length === 1 ? `peca=${encodeURIComponent(m.pecas[0].id)}&` : ""}rascunho=${encodeURIComponent("Sobre o " + m.titulo + ": ")}">${ICONES.ia} Perguntar à IA</a>
       </div>
     </div>`;
 }

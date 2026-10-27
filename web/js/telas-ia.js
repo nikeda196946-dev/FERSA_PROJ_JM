@@ -153,10 +153,14 @@ function linkFalarComTecnico(res, classe){
 function renderRespostaIA(bloco, res){
   const blocoResposta = bloco.querySelector(".ia-bloco:last-child");
   const rodape = res.modelo ? `<p class="ia-modelo">Gerado por ${esc(res.modelo)} a partir dos manuais cadastrados.</p>` : "";
+  const avisoPeca = !res.pecaContexto ? "" : res.buscaNaPeca
+    ? `<p class="aviso-peca">${ICONES.manual}<span>Resposta dos manuais do <strong>${esc(res.pecaContexto)}</strong></span></p>`
+    : `<p class="aviso-peca">${ICONES.info}<span>Nenhum manual ligado ao <strong>${esc(res.pecaContexto)}</strong> respondia — busquei em todos os manuais.</span></p>`;
 
   if(!res.encontrouConteudo){
     blocoResposta.innerHTML = `
       <div class="ia-rotulo">Resposta</div>
+      ${avisoPeca}
       <div class="ia-resposta sem-info">${formatarRespostaIA(res.resposta)}</div>
       <div class="ia-acoes">${linkFalarComTecnico(res, "btn-principal")}</div>`;
     return;
@@ -164,6 +168,7 @@ function renderRespostaIA(bloco, res){
 
   blocoResposta.innerHTML = `
     <div class="ia-rotulo">Resposta</div>
+    ${avisoPeca}
     <div class="ia-resposta">
       ${formatarRespostaIA(res.resposta)}
       <h4>Fontes consultadas</h4>

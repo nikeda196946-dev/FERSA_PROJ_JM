@@ -8,7 +8,8 @@ HTML + CSS + JavaScript puro, sem build step. Fala com o backend (pasta
 | Área | Rota | Login | Dados |
 |---|---|---|---|
 | Criar conta | `#/cadastro` | **não precisa** | reais — Supabase Auth; entra sempre como Mecânico (precisa de `database/cadastro.sql`) |
-| Perguntar à IA (RAG) | `#/ia` | **não precisa** | reais — `POST /api/chat`, fontes com link para o PDF na página citada |
+| Perguntar à IA (RAG) | `#/ia` | **não precisa** | reais — `POST /api/chat`, fontes com link para o PDF na página citada; logado, escolher a peça faz a busca começar pelos manuais dela |
+| Ficha da peça → Manual | `#/peca/:id/manual` | sim | reais — manuais ligados ao Part Number da peça |
 | Manuais | `#/manuais` | **não precisa** | reais — busca por título, categoria ou texto do manual |
 | Busca e ficha de peça, chamados | `#/inicio`, `#/busca/…`, `#/peca/…`, `#/chamados` | sim | reais |
 | CMS → Manuais | `#/admin/manuais` | ADMIN | reais — **importar do SharePoint**, enviar PDF (vários de uma vez), status ao vivo, trechos, editar, ativar/desativar, reprocessar, excluir |

@@ -167,8 +167,8 @@ em `ChamadoService.buscarDetalhe`).
 | GET | `/api/v1/chamados/{id}` | dono do chamado, ou TECNICO/ADMIN |
 | POST | `/api/v1/chamados/{id}/assumir` | TECNICO, ADMIN |
 | POST | `/api/v1/chamados/{id}/solucao` | TECNICO, ADMIN |
-| POST | `/api/chat` | **público** — pergunta → resposta + fontes |
-| GET | `/api/manuais?termo=&categoriaId=` | **público** — só manuais ativos e prontos |
+| POST | `/api/chat` (`pergunta`, `pecaId?`) | **público** — pergunta → resposta + fontes; com `pecaId`, busca primeiro nos manuais da peça |
+| GET | `/api/manuais?termo=&categoriaId=&pecaId=` | **público** — só manuais ativos e prontos; `termo` também acha pelo Part Number |
 | GET | `/api/manuais/{id}/pdf` | **público** — o PDF, para abrir a fonte citada |
 | GET | `/api/categorias` | **público** — só categorias ativas |
 | POST | `/api/admin/manuais` (multipart: `arquivo`, `titulo?`, `categoriaId?`) | ADMIN — responde 202, processa em segundo plano |
@@ -176,6 +176,8 @@ em `ChamadoService.buscarDetalhe`).
 | GET | `/api/admin/manuais/{id}/chunks` | ADMIN — conferir a ingestão |
 | GET | `/api/admin/manuais/{id}/pdf` | ADMIN — o PDF mesmo de manual inativo ou com erro |
 | PUT | `/api/admin/manuais/{id}` (`titulo`, `categoriaId`) | ADMIN |
+| PUT | `/api/admin/manuais/{id}/pecas` (`pecaIds`) | ADMIN — peças (Part Numbers) do manual: o conjunto final |
+| POST | `/api/admin/manuais/detectar-pecas` | ADMIN — refaz a detecção de Part Numbers em todos os manuais (sem reprocessar) |
 | PATCH | `/api/admin/manuais/{id}/ativo` (`ativo`) | ADMIN |
 | POST | `/api/admin/manuais/{id}/reprocessar` | ADMIN — 202 |
 | DELETE | `/api/admin/manuais/{id}` | ADMIN |
@@ -264,6 +266,18 @@ Decisões que valem saber:
   coberta e diz o que falta.
 - **Fontes**: `fontes` traz os trechos listados em `chunksUtilizados` (se
   vier vazio, traz todos os enviados). `numero` é o `indice` do trecho no prompt.
+- **Manual ↔ peça (Part Number)**: na ingestão, o backend procura os Part
+  Numbers do catálogo (`pecas`) no título, no nome do arquivo e no texto do
+  PDF, aceitando "FRS-1001", "FRS 1001", "frs1001" (mas "FRS-10010" não
+  conta), e liga o manual à peça (`manual_peca`, origem `automatico`). No
+  CMS o admin confere e ajusta: o que ele liga fica `manual`; o que ele
+  desliga fica `removido` e não volta nem ao reprocessar. O botão
+  "Detectar peças nos manuais" refaz a detecção em todos, sem chamar o Gemini.
+- **Chat com peça**: com `pecaId`, a pergunta ganha o Part Number e a busca
+  vetorial vai só nos manuais ligados à peça — o torque do FRS-1001 não se
+  mistura com o do FRS-1003. Se a peça não tem manual ligado (ou nada
+  relevante neles), busca em todos. A resposta traz `pecaContexto` e
+  `buscaNaPeca`.
 - **Instruções dentro dos manuais** ("ignore as regras acima") são tratadas
   como texto, não como comando — regra explícita no prompt.
 - **PDF escaneado** (só imagem) não tem texto: o manual vai para `ERRO` com

@@ -22,6 +22,6 @@ public class ChatController {
 
     @PostMapping
     public ChatResponse perguntar(@Valid @RequestBody ChatRequest req) {
-        return chatService.perguntar(req.pergunta());
+        return chatService.perguntar(req.pergunta(), req.pecaId());
     }
 }
