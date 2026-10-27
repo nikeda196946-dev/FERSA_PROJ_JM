@@ -16,7 +16,8 @@ class ManualServiceTest {
 
     @Test
     void tituloPadraoVemDoNomeDoArquivo() {
-        assertThat(ManualService.tituloPadrao("manual_instalacao-FRS-1001.PDF")).isEqualTo("manual instalacao FRS 1001");
+        assertThat(ManualService.tituloPadrao("manual_instalacao-FRS-1001.PDF")).isEqualTo("manual instalacao-FRS-1001");
+        assertThat(ManualService.tituloPadrao("FRS-1001 - Manual Técnico  - Roda.pdf")).isEqualTo("FRS-1001 - Manual Técnico - Roda");
         assertThat(ManualService.tituloPadrao(".pdf")).isEqualTo("Manual sem título");
     }
 }
