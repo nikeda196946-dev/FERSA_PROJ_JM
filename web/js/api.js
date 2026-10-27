@@ -207,8 +207,9 @@ async function validarConfigSupabase(){
    sessão acabou de verdade e a pessoa volta para o login. */
 async function renovarSessao(){
   const sessao = Sessao.atual();
-  if(!sessao?.refreshToken || !FERSA_CONFIG.supabaseUrl) return false;
+  if(!sessao?.refreshToken) return false;
   try{
+    await validarConfigSupabase(); // depois de um F5 a URL do Supabase ainda não foi carregada
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
       body: JSON.stringify({ refresh_token: sessao.refreshToken })
@@ -342,7 +343,7 @@ Object.assign(api, {
      trigger de database/cadastro.sql. Com a confirmação de e-mail ligada no
      Supabase, a resposta não traz sessão: a pessoa confirma e depois entra. */
   async cadastrar(nome, email, senha){
-    validarConfigSupabase();
+    await validarConfigSupabase();
     const r = await fetch(`${FERSA_CONFIG.supabaseUrl.replace(/\/$/, "")}/auth/v1/signup`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: FERSA_CONFIG.supabaseAnonKey },
       body: JSON.stringify({ email: (email || "").trim(), password: senha, data: { nome: (nome || "").trim() } })
