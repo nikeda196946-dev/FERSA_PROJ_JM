@@ -37,5 +37,6 @@ const ICONES = {
   vazio: '<svg class="ico" viewBox="0 0 24 24" style="width:40px;height:40px"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18"/></svg>',
   imagem: '<svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
   clip: '<svg class="ico ico-p" viewBox="0 0 24 24"><path d="M21 12.5 12.5 21a5 5 0 0 1-7-7L14 5.5a3.5 3.5 0 0 1 5 5L10.5 19a2 2 0 0 1-3-3L15 8.5"/></svg>',
+  menu: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
   celular: '<svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>'
 };

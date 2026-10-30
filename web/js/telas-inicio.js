@@ -5,11 +5,9 @@
 /* ---------------- Login ---------------- */
 rota("/login", () => {
   montarConteudo(null, { semTopbar: true });
-  document.getElementById("app").innerHTML = `
-    <div class="tela-login">
-      <div class="painel-login">
-        <div class="marca-login">FERSA Care</div>
-        <p class="slogan">Suporte técnico de rolamentos, direto na oficina.</p>
+  document.getElementById("app").innerHTML = telaAcesso(`
+        <div class="marca-login">Entrar</div>
+        <p class="slogan">Use o e-mail e a senha da sua conta FERSA Care.</p>
         <form id="form-login" novalidate>
           <div class="campo" id="campo-email">
             <label for="email">E-mail</label>
@@ -31,9 +29,7 @@ rota("/login", () => {
         <div class="acesso-publico">
           <a class="link-simples" href="#/ia">${ICONES.ia} Perguntar à IA sem entrar</a>
           <a class="link-simples" href="#/manuais">${ICONES.manual} Consultar manuais</a>
-        </div>
-      </div>
-    </div>`;
+        </div>`);
   ligarLogin();
 }, null);
 
@@ -72,11 +68,9 @@ function ligarLogin(){
    database/cadastro.sql. Técnico/Admin só por promoção no CMS (Usuários). */
 rota("/cadastro", () => {
   montarConteudo(null, { semTopbar: true });
-  document.getElementById("app").innerHTML = `
-    <div class="tela-login">
-      <div class="painel-login">
+  document.getElementById("app").innerHTML = telaAcesso(`
         <a class="voltar" href="#/login">${ICONES.setaEsq} Voltar ao login</a>
-        <div class="marca-login" style="font-size:1.3rem;">Criar conta</div>
+        <div class="marca-login">Criar conta</div>
         <p class="slogan" id="texto-cadastro">Para mecânicos e oficinas. Com a conta você abre chamados e acompanha as soluções.</p>
         <form id="form-cadastro" novalidate>
           <div class="campo" id="campo-cad-nome">
@@ -100,9 +94,7 @@ rota("/cadastro", () => {
           </div>
           <button class="btn-principal btn-bloco" type="submit" id="btn-cadastrar">Criar conta</button>
         </form>
-        <p class="nota-login">Já tem conta? <a class="link-simples" href="#/login">Entrar</a></p>
-      </div>
-    </div>`;
+        <p class="nota-login">Já tem conta? <a class="link-simples" href="#/login">Entrar</a></p>`);
   ligarCadastro();
 }, null);
 
@@ -153,11 +145,9 @@ function ligarCadastro(){
 /* ---------------- Recuperar senha ---------------- */
 rota("/recuperar-senha", () => {
   montarConteudo(null, { semTopbar: true });
-  document.getElementById("app").innerHTML = `
-    <div class="tela-login">
-      <div class="painel-login">
+  document.getElementById("app").innerHTML = telaAcesso(`
         <a class="voltar" href="#/login">${ICONES.setaEsq} Voltar ao login</a>
-        <div class="marca-login" style="font-size:1.3rem;">Recuperar senha</div>
+        <div class="marca-login">Recuperar senha</div>
         <p class="slogan" id="texto-recuperar">Informe seu e-mail de acesso. Enviaremos um link para você criar uma nova senha.</p>
         <form id="form-recuperar" novalidate>
           <div class="campo">
@@ -166,9 +156,7 @@ rota("/recuperar-senha", () => {
           </div>
           <button class="btn-principal btn-bloco" type="submit" id="btn-recuperar">Enviar link de recuperação</button>
         </form>
-        <p class="nota-login">Se o endereço estiver cadastrado, o Supabase enviará as instruções de recuperação.</p>
-      </div>
-    </div>`;
+        <p class="nota-login">Se o endereço estiver cadastrado, o Supabase enviará as instruções de recuperação.</p>`);
   document.getElementById("form-recuperar").addEventListener("submit", (e) => {
     e.preventDefault();
     const email = document.getElementById("email-rec").value;
@@ -199,6 +187,7 @@ rota("/inicio", () => {
     montarConteudo(`
       <div class="conteudo">
         <div class="cabecalho-inicio">
+          <span class="eyebrow">Painel do mecânico</span>
           <h1>Olá, ${esc((sessao.nome || "").split(" ")[0])}</h1>
           <p>O que você precisa? Digite o Part Number, ou escolha uma opção abaixo.</p>
         </div>

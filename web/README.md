@@ -74,13 +74,14 @@ backend inclui a origem que você está usando (ex: `http://127.0.0.1:5500`).
 ```
 web/
 ├── index.html
-├── css/app.css
+├── css/app.css            → design system Fersa (tokens + componentes)
+├── img/                   → logotipo e símbolo oficiais (vetores do Brand Manual) e favicon
 └── js/
     ├── config.js          → local, fora do Git (criado a partir do .example)
     ├── config.example.js  → template committado
     ├── data.js             → dados fictícios das seções "demo" do CMS
     ├── icons.js            → ícones SVG inline
-    ├── core.js              → sessão, roteador por hash, toasts, modal
+    ├── core.js              → sessão, roteador por hash, header, rodapé, tela de acesso, toasts, modal
     ├── api.js                → fala com o backend (login, peças, chamados, chat,
     │                           manuais, categorias); só as seções demo usam data.js
     ├── telas-inicio.js        → login, recuperar senha, início, busca
@@ -89,3 +90,41 @@ web/
     ├── telas-manuais.js         → busca pública de manuais
     └── telas-admin.js            → CMS: manuais, categorias e base de conhecimento reais; demais seções demo
 ```
+
+## Identidade visual
+
+A interface segue o *Brand Manual Fersa 2025 (short version)*. Tudo fica
+centralizado em `css/app.css`, na seção **1. Tokens**. Não use cores soltas
+no CSS ou no JS: use as variáveis.
+
+- **Cores:**
+  - Fersa Origin `#003256` é a base institucional (header, botão primário, títulos).
+  - Fersa Titanium `#F6F6F6` é o fundo das páginas.
+  - Fersa Steel `#465055` é o texto.
+  - Fersa Chrome `#85959C` é usado em ícones, bordas e textos auxiliares.
+  - Fersa Electric `#00A9FF` é só destaque: item ativo, foco, indicadores e gráficos.
+  - Para texto pequeno sobre fundo branco há variações com contraste AA:
+    `--electric-ink` e `--text-secondary`.
+- **Gradiente corporativo** (Origin → Electric): aparece só em pontos de destaque.
+  São eles o painel do login, o card "Perguntar à IA", o KPI principal do
+  dashboard, o player de vídeo e a linha superior dos modais.
+- **Tipografia:** a fonte corporativa é a TT Hoves Pro, que tem licença e não está
+  no projeto. A alternativa web é a **Inter**, pelo Google Fonts, com hierarquia
+  única (`--fs-display`, `--fs-h1`… `--fs-caption`).
+- **Logotipo** (`img/fersa-logo*.svg`) e **símbolo** (`img/fersa-simbolo*.svg`):
+  - foram extraídos em vetor do próprio manual, sem redesenho;
+  - use a versão Origin em fundo claro e a branca em fundo escuro;
+  - nunca recolorir nem distorcer;
+  - "Care" fica fora do logotipo, separado por respiro e um fio vertical.
+- **Separador** (logo ✳ claim): usado no rodapé e no login com o slogan oficial
+  "Excellence beyond bearings".
+- **Ícones:** um único conjunto linear, em `js/icons.js`.
+- **Padrões:**
+  - status sempre com texto e ponto (`.badge` + `b-ok`, `b-info`, `b-alerta`, `b-erro`);
+  - botões: primário, secundário, fantasma e perigo;
+  - campos com estados de hover, foco (Electric), desabilitado, somente leitura, erro (`.invalido`) e sucesso (`.valido`).
+- **Responsivo:**
+  - 960, 900, 720, 560 e 420 px;
+  - o menu do CMS vira gaveta abaixo de 900 px;
+  - o mecânico ganha barra inferior abaixo de 720 px;
+  - as tabelas viram cartões e os modais viram folha inferior no celular.
