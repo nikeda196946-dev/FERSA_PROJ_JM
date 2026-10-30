@@ -83,12 +83,55 @@ function telaNaoEncontrada(){
 function montarConteudo(htmlMiolo, opcoes){
   const app = document.getElementById("app");
   const semTopbar = opcoes && opcoes.semTopbar;
+  const semRodape = semTopbar || (opcoes && opcoes.semRodape);
+  document.body.classList.remove("menu-aberto");
   app.innerHTML = `
     ${semTopbar ? "" : topbar(opcoes)}
     <main id="conteudo" tabindex="-1">${htmlMiolo}</main>
+    ${semRodape ? "" : rodape()}
     ${semTopbar ? "" : navInferior()}
   `;
   ligarTopbar();
+}
+
+/* Logotipo oficial (vetor extraído do Brand Manual): Fersa Origin em fundo
+   claro, branco em fundo escuro. Nunca recolorir, distorcer ou compor. */
+function logoFersa(variante, classe){
+  const arquivo = variante === "branco" ? "img/fersa-logo-branco.svg" : "img/fersa-logo.svg";
+  return `<img class="${classe || "logo"}" src="${arquivo}" alt="Fersa" width="516" height="83">`;
+}
+function simboloFersa(variante, classe){
+  const arquivo = variante === "branco" ? "img/fersa-simbolo-branco.svg" : "img/fersa-simbolo.svg";
+  return `<img class="${classe || "simbolo"}" src="${arquivo}" alt="" aria-hidden="true" width="584" height="658">`;
+}
+
+/* Rodapé: logo + separador (símbolo) + claim oficial, como no manual. */
+function rodape(){
+  return `
+    <footer class="rodape">
+      <div class="assinatura">${logoFersa("origin", "logo")}${simboloFersa("origin")}<span>Excellence beyond bearings</span></div>
+      <span>FERSA Care · suporte técnico de rolamentos</span>
+    </footer>`;
+}
+
+/* Telas de acesso (login, cadastro, recuperar senha): marca à esquerda,
+   formulário à direita. */
+function telaAcesso(htmlPainel){
+  return `
+    <div class="tela-acesso">
+      <section class="acesso-marca" aria-label="Fersa">
+        ${logoFersa("branco")}
+        <div>
+          <span class="eyebrow">FERSA Care</span>
+          <h1 class="titulo-acesso">Suporte técnico de rolamentos, direto na oficina.</h1>
+          <p class="descricao">Busca por Part Number, manuais técnicos e respostas da IA com a fonte no manual, para quem trabalha com rolamentos todos os dias.</p>
+        </div>
+        <div class="assinatura">${simboloFersa("branco")}<span>Excellence beyond bearings</span></div>
+      </section>
+      <section class="acesso-form">
+        <div class="painel-login">${htmlPainel}</div>
+      </section>
+    </div>`;
 }
 
 function rotaAtualBase(){
@@ -107,18 +150,20 @@ function topbar(){
     { href: "#/chamados", rot: "chamados", label: "Meus chamados" }
   ];
   const ehAdmin = sessao && sessao.perfil !== "MECANICO";
+  const noCms = base === "admin";
   return `
-    <div class="topbar">
-      <a class="marca" href="${ehAdmin ? "#/admin" : "#/inicio"}">
-        <span class="ponto"></span><span class="texto-marca">FERSA Care</span>
+    <header class="topbar">
+      ${noCms ? `<button class="btn-menu" type="button" data-acao="menu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menu-admin">${ICONES.menu}</button>` : ""}
+      <a class="marca" href="${ehAdmin ? "#/admin" : "#/inicio"}" aria-label="FERSA Care — início">
+        ${logoFersa("branco")}<span class="produto">Care</span>
       </a>
-      ${ehAdmin ? "" : `<nav class="nav-principal">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${esc(i.label)}</a>`).join("")}</nav>`}
+      ${ehAdmin ? "" : `<nav class="nav-principal" aria-label="Navegação principal">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}"${base === i.rot ? ' aria-current="page"' : ""}>${esc(i.label)}</a>`).join("")}</nav>`}
       <div class="acoes">
-        ${ehAdmin ? `<a class="btn-texto" href="#/inicio">Ver como mecânico</a>` : ""}
-        <span class="usuario">${sessao ? esc(sessao.nome) + " · " + esc(rotuloPerfil(sessao.perfil)) : ""}</span>
-        <button class="btn-texto" data-acao="sair">${ICONES.sair} Sair</button>
+        ${ehAdmin ? `<a class="btn-texto ver-mecanico" href="#/inicio">${ICONES.olho}<span class="rotulo-curto">Ver como mecânico</span></a><span class="separador-v" aria-hidden="true"></span>` : ""}
+        <span class="usuario">${esc(sessao.nome)}<small>${esc(rotuloPerfil(sessao.perfil))}</small></span>
+        <button class="btn-texto" data-acao="sair" aria-label="Sair">${ICONES.sair}<span class="rotulo-curto">Sair</span></button>
       </div>
-    </div>`;
+    </header>`;
 }
 /* Sem login: só a área pública (chat e manuais) e o botão de entrar. */
 function topbarPublica(base){
@@ -127,11 +172,11 @@ function topbarPublica(base){
     { href: "#/manuais", rot: "manuais", label: "Manuais" }
   ];
   return `
-    <div class="topbar">
-      <a class="marca" href="#/ia"><span class="ponto"></span><span class="texto-marca">FERSA Care</span></a>
-      <nav class="nav-principal">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${esc(i.label)}</a>`).join("")}</nav>
+    <header class="topbar topbar-publica">
+      <a class="marca" href="#/ia" aria-label="FERSA Care">${logoFersa("branco")}<span class="produto">Care</span></a>
+      <nav class="nav-principal" aria-label="Navegação principal">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}"${base === i.rot ? ' aria-current="page"' : ""}>${esc(i.label)}</a>`).join("")}</nav>
       <div class="acoes"><a class="btn-secundario btn-pequeno" href="#/login">${ICONES.usuario} Entrar</a></div>
-    </div>`;
+    </header>`;
 }
 
 function navInferior(){
@@ -145,7 +190,7 @@ function navInferior(){
     { href: "#/manuais", rot: "manuais", label: "Manuais", ico: ICONES.manual },
     { href: "#/chamados", rot: "chamados", label: "Chamados", ico: ICONES.chamado }
   ];
-  return `<nav class="nav-inferior">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}">${i.ico}${esc(i.label)}</a>`).join("")}</nav>`;
+  return `<nav class="nav-inferior" aria-label="Navegação">${itens.map(i => `<a href="${i.href}" class="${base === i.rot ? "ativo" : ""}"${base === i.rot ? ' aria-current="page"' : ""}>${i.ico}${esc(i.label)}</a>`).join("")}</nav>`;
 }
 function rotuloPerfil(p){
   return { MECANICO: "Mecânico", TECNICO: "Técnico", ADMIN: "Administrador", CLIENTE: "Cliente" }[p] || p;
@@ -153,6 +198,16 @@ function rotuloPerfil(p){
 function ligarTopbar(){
   const btn = document.querySelector('[data-acao="sair"]');
   if(btn) btn.addEventListener("click", () => { Sessao.sair(); irPara("/login"); });
+  // CMS no celular/tablet: o menu lateral vira gaveta
+  const menu = document.querySelector('[data-acao="menu"]');
+  if(menu) menu.addEventListener("click", () => alternarMenuAdmin());
+}
+function alternarMenuAdmin(abrir){
+  const aberto = typeof abrir === "boolean" ? abrir : !document.body.classList.contains("menu-aberto");
+  document.body.classList.toggle("menu-aberto", aberto);
+  const btn = document.querySelector('[data-acao="menu"]');
+  if(btn){ btn.setAttribute("aria-expanded", String(aberto)); btn.setAttribute("aria-label", aberto ? "Fechar menu" : "Abrir menu"); }
+  if(aberto){ const primeiro = document.querySelector("#menu-admin a"); if(primeiro) primeiro.focus(); }
 }
 
 /* ---------------- Toasts ---------------- */
@@ -190,6 +245,19 @@ function abrirModalConfirmacao({ titulo, corpo, textoConfirmar, perigo, aoConfir
   fundo.querySelector("[data-confirmar]").addEventListener("click", () => { fechar(); aoConfirmar(); });
   fundo.querySelector("[data-confirmar]").focus();
 }
+
+/* Esc fecha o modal aberto (o de cima) e a gaveta do menu do CMS. */
+document.addEventListener("keydown", (e) => {
+  if(e.key !== "Escape") return;
+  const fundos = document.querySelectorAll(".modal-fundo");
+  const topo = fundos[fundos.length - 1];
+  if(topo){
+    const fechar = topo.querySelector("[data-fechar]");
+    if(fechar) fechar.click(); else topo.remove();
+    return;
+  }
+  if(document.body.classList.contains("menu-aberto")) alternarMenuAdmin(false);
+});
 
 /* ---------------- Delegação global de cliques em [data-destino] ---------------- */
 document.addEventListener("click", (e) => {

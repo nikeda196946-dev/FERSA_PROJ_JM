@@ -7,20 +7,20 @@
    ===================================================================== */
 
 const MENU_ADMIN = [
-  { id: "", label: "Dashboard", ico: "dashboard" },
-  { id: "manuais", label: "Manuais", ico: "manual", perfis: ["ADMIN"] },
-  { id: "categorias", label: "Categorias", ico: "base", perfis: ["ADMIN"] },
-  { id: "base-conhecimento", label: "Base de conhecimento", ico: "base", perfis: ["ADMIN"] },
-  { id: "teste-ia", label: "Testar IA", ico: "ia", perfis: ["ADMIN"] },
-  { id: "usuarios", label: "Usuários", ico: "usuario", perfis: ["ADMIN"] },
-  { id: "pecas", label: "Peças", ico: "peca", demo: true },
-  { id: "aplicacoes", label: "Aplicações", ico: "peca", demo: true },
-  { id: "tutoriais", label: "Tutoriais", ico: "instalar", demo: true },
-  { id: "videos", label: "Vídeos", ico: "video", demo: true },
-  { id: "ferramentas", label: "Ferramentas", ico: "ferramentas", demo: true },
-  { id: "problemas", label: "Problemas", ico: "problema", demo: true },
-  { id: "solucoes", label: "Soluções", ico: "check", demo: true },
-  { id: "chamados", label: "Chamados", ico: "chamado", href: "#/chamados" }
+  { id: "", label: "Dashboard", ico: "dashboard", grupo: "Visão geral" },
+  { id: "manuais", label: "Manuais", ico: "manual", perfis: ["ADMIN"], grupo: "Busca por IA" },
+  { id: "categorias", label: "Categorias", ico: "base", perfis: ["ADMIN"], grupo: "Busca por IA" },
+  { id: "base-conhecimento", label: "Base de conhecimento", ico: "base", perfis: ["ADMIN"], grupo: "Busca por IA" },
+  { id: "teste-ia", label: "Testar IA", ico: "ia", perfis: ["ADMIN"], grupo: "Busca por IA" },
+  { id: "usuarios", label: "Usuários", ico: "usuario", perfis: ["ADMIN"], grupo: "Acesso" },
+  { id: "pecas", label: "Peças", ico: "peca", demo: true, grupo: "Catálogo" },
+  { id: "aplicacoes", label: "Aplicações", ico: "peca", demo: true, grupo: "Catálogo" },
+  { id: "tutoriais", label: "Tutoriais", ico: "instalar", demo: true, grupo: "Catálogo" },
+  { id: "videos", label: "Vídeos", ico: "video", demo: true, grupo: "Catálogo" },
+  { id: "ferramentas", label: "Ferramentas", ico: "ferramentas", demo: true, grupo: "Catálogo" },
+  { id: "problemas", label: "Problemas", ico: "problema", demo: true, grupo: "Catálogo" },
+  { id: "solucoes", label: "Soluções", ico: "check", demo: true, grupo: "Catálogo" },
+  { id: "chamados", label: "Chamados", ico: "chamado", href: "#/chamados", grupo: "Atendimento" }
 ];
 
 function podeVerItemMenu(item, sessao){
@@ -31,20 +31,30 @@ function montarAdmin(secaoAtiva, htmlDireita){
   const sessao = Sessao.atual();
   const item = MENU_ADMIN.find(i => i.id === secaoAtiva);
   const demo = item && item.demo;
+  let grupoAtual = null;
+  const itensMenu = MENU_ADMIN.filter(i => podeVerItemMenu(i, sessao)).map(i => {
+    const cab = i.grupo !== grupoAtual ? `<span class="grupo-menu">${esc(i.grupo)}</span>` : "";
+    grupoAtual = i.grupo;
+    const ativo = secaoAtiva === i.id;
+    return `${cab}<a href="${i.href || "#/admin" + (i.id ? "/" + i.id : "")}" class="${ativo ? "ativo" : ""}"${ativo ? ' aria-current="page"' : ""}>${ICONES[i.ico]}${esc(i.label)}${i.demo ? `<span class="selo-demo">demo</span>` : ""}</a>`;
+  }).join("");
   montarConteudo(`
     <div class="admin-grade">
-      <aside class="admin-menu">
+      <aside class="admin-menu" id="menu-admin" aria-label="Menu do CMS">
         <nav>
-          ${MENU_ADMIN.filter(i => podeVerItemMenu(i, sessao)).map(i => `
-            <a href="${i.href || "#/admin" + (i.id ? "/" + i.id : "")}" class="${secaoAtiva === i.id ? "ativo" : ""}">${ICONES[i.ico]}${esc(i.label)}${i.demo ? `<span class="selo-demo">demo</span>` : ""}</a>`).join("")}
+          ${itensMenu}
+          <div class="assinatura-menu">${simboloFersa("branco")}<span>Excellence beyond bearings</span></div>
         </nav>
       </aside>
+      <div class="admin-overlay" data-acao="fechar-menu"></div>
       <div class="admin-conteudo">
         <span class="tag-cms" style="margin-bottom:12px;display:inline-block;">CMS · ${esc(rotuloPerfil(sessao.perfil))}</span>
-        ${demo ? `<div class="aviso-prototipo" style="margin:0 0 16px;">${ICONES.info}<span>Seção demonstrativa: usa dados fictícios e nada do que for alterado aqui é salvo. As seções reais são Manuais, Categorias, Base de conhecimento, Testar IA e Usuários.</span></div>` : ""}
+        ${demo ? `<div class="aviso-prototipo aviso-demo-cms">${ICONES.info}<span>Seção demonstrativa: usa dados fictícios e nada do que for alterado aqui é salvo. As seções reais são Manuais, Categorias, Base de conhecimento, Testar IA e Usuários.</span></div>` : ""}
         ${htmlDireita}
       </div>
-    </div>`);
+    </div>`, { semRodape: true });
+  const overlay = document.querySelector('[data-acao="fechar-menu"]');
+  if(overlay) overlay.addEventListener("click", () => alternarMenuAdmin(false));
 }
 
 function cabAdmin(titulo, subtitulo, acaoHtml){
